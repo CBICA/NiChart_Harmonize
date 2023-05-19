@@ -5,11 +5,11 @@ from typing import Tuple, Union
 
 def main():
     prog="neuroharm"
-    description = "Harmonization reference data creation & harmonization of new data"
+    description = "Harmonization learn ref model & apply to new data"
     parser = argparse.ArgumentParser(prog=prog,
                                      description=description)
 
-    # Action argument
+    # Action
     help = "The action to be performed, either 'learn' or 'apply'"
     parser.add_argument("-a", 
                         "--action", 
@@ -18,7 +18,7 @@ def main():
                         default=None, 
                         required=True)
     
-    # Data argument
+    # Data file
     help = "The dataset to be used as input. Can be either a "\
             + "string filepath of a .csv file (str) or a pandas dataframe "\
             + "(pd.DataFrame)"
@@ -28,7 +28,7 @@ def main():
                         default=None, 
                         required=True)
     
-    # Covariates data argument
+    # Covariates file
     help = "The covariates to be used as input. Can be either a "\
             + "string filepath of a .csv file (str) or a pandas dataframe "\
             + "(pd.DataFrame)"
@@ -38,14 +38,60 @@ def main():
                         default=None, 
                         required=True)
 
-    # Model argument
-    help = "The model to be used (only) for harmonization of new data. Can be either a "\
+    # Model file
+    help = "The model to use for harmonization (only for action apply). Can be either a "\
             + "string filepath of a .pkl.gz file or a tuple (dict, dict)."
     parser.add_argument("-m", 
                         type=str,
                         help=help, 
                         default=None, 
                         required=True)
+
+    # Key var name
+    help = "The primary key field that links data and covariates"
+    parser.add_argument("--fkey", 
+                        type=str,
+                        help=help, 
+                        default=None, 
+                        required=False)
+
+    # Batch var name
+    help = "Batch field name used for harmonization"
+    parser.add_argument("--fbatch", 
+                        type=str,
+                        help=help, 
+                        default=None, 
+                        required=True)
+
+    # Categorical vars name
+    help = "Categorical field names"
+    parser.add_argument("--fcat", 
+                        type=str,
+                        action='append', 
+                        nargs='+',
+                        help=help, 
+                        default=None, 
+                        required=False)
+
+    # Spline vars name
+    help = "Field names to ignore"
+    parser.add_argument("--fignore", 
+                        type=str,
+                        action='append', 
+                        nargs='+',
+                        help=help, 
+                        default=None, 
+                        required=False)
+
+    # Ignore vars name
+    help = "Field names to ignore"
+    parser.add_argument("--fspline", 
+                        type=str,
+                        action='append', 
+                        nargs='+',
+                        help=help, 
+                        default=None, 
+                        required=False)
     
     # Verbosity argument
     help = "Verbosity"
@@ -65,7 +111,7 @@ def main():
                         required=False)
     
     args = parser.parse_args()
-    print(args.data)
+    print(args)
     input()
     
     ## Call harmonize functions

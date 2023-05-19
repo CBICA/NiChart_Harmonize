@@ -21,7 +21,7 @@ FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 #pwd='/home/guray/Github/neuroHarmonizeV2/neuroHarmonizeV2'
 #sys.path.append(pwd)
 
-#from .nh_utils import parse_init_data, make_dict_batches, make_design_dataframe, add_spline_vars, calc_B_hat, standardize_across_features, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_results
+from .nh_utils import parse_init_data, make_dict_batches, make_design_dataframe, add_spline_vars, calc_B_hat, standardize_across_features, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_results
 
 
     ##############################

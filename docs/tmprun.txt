@@ -1,0 +1,8 @@
+
+conda create -n NeuroHARM python=3.8
+conda activate NeuroHARM
+pip install .
+
+tmpdir='/home/guraylab/AIBIL/Github/NiChartPackages/NiChartDataPrep/outputs/view4_concat'
+
+neuroharm -a learn --data ${tmpdir}/ISTAGING_DATA.csv --covars ${tmpdir}/ISTAGING_COV.csv -m MMM -s SSS

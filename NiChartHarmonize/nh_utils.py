@@ -210,25 +210,38 @@ def save_results(results, out_file_name):
 
 #####################################################################################
 ## Functions specific to LearnRefModel
-def parse_init_data(df_data, df_cov, batch_col, categoric_cols, spline_cols, spline_bounds_min, spline_bounds_max,
-                    ignore_cols, out_file_name):
+def parse_init_data(data, covars, batch_col, categoric_cols, spline_cols, ignore_cols):
     """ 
     Read initial data, verify it, and extract meta data about variables
     """
     
-    ## Check output file
-    if out_file_name != None:
-        out_file_name_full = os.path.abspath(out_file_name)
-        if os.path.exists(out_file_name_full):
-            raise ValueError('Out file already exists: %s. Change name or delete to save.' % out_file_name)
+    ## Set out variables
+    df_data = None
+    df_cov = None
+    dict_cov = None
+    dict_categories = None
     
-    ## Verify data dataframe
-    if not isinstance(df_data, pd.DataFrame):
-        raise ValueError('Data must be a pandas dataframe')
+    ## Verify data
+    if isinstance(data, pd.DataFrame):
+        df_data = data.copy()
+    else:
+        if os.path.exists(data):
+            df_data = pd.read_csv(data)
+        else:
+            return df_data, df_cov, dict_cov, dict_categories
 
-    ## Verify covar dataframe
-    if not isinstance(df_cov, pd.DataFrame):
-        raise ValueError('Covars must be a pandas dataframe')
+    ## Verify covars
+    if isinstance(covars, pd.DataFrame):
+        df_cov = covars.copy()
+    else:
+        if os.path.exists(covars):
+            df_cov = pd.read_csv(covars)
+        else:
+            return df_data, df_cov, dict_cov, dict_categories
+
+    ## Delete first column of data and covars
+    df_data = df_data[df_data.columns[1:]]
+    df_cov = df_cov[df_cov.columns[1:]]
 
     ## Reset index for data and covar dataframes
     df_data = df_data.reset_index(drop = True)
@@ -236,7 +249,6 @@ def parse_init_data(df_data, df_cov, batch_col, categoric_cols, spline_cols, spl
 
     ## Verify input columns exist
     cols_combined = [batch_col] + categoric_cols + spline_cols
-    
     for tmp_col in cols_combined:
         if tmp_col not in df_cov.columns:
             raise ValueError('Variable not found in covariates dataframe: ' + tmp_col)
@@ -263,6 +275,11 @@ def parse_init_data(df_data, df_cov, batch_col, categoric_cols, spline_cols, spl
     covar_cols_all = numeric_cols + categoric_cols + spline_cols
 
     ## Create dictionary of covars
+    
+    ## FIXME
+    spline_bounds_min = [20]
+    spline_bounds_max = [120]
+    
     dict_cov = {'covar_cols_all' : covar_cols_all, 'batch_col' : batch_col, 
                 'numeric_cols' : numeric_cols, 'categoric_cols' : categoric_cols, 
                 'spline_cols' : spline_cols, 'spline_bounds_min' : spline_bounds_min,

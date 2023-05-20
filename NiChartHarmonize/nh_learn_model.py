@@ -35,9 +35,8 @@ from .nh_utils import parse_init_data, make_dict_batches, make_design_dataframe,
 
 
 
-def nh_learn_ref_model(df_data, df_cov, batch_col, cat_cols = [], 
-                       ignore_cols = [], spline_cols = [], spline_bounds_min = [], 
-                       spline_bounds_max = [], is_emp_bayes=True, out_file_name = None):
+def nh_learn_ref_model(data, covars, batch_col, cat_cols = [], 
+                       ignore_cols = [], spline_cols = [], is_emp_bayes=True, out_file_name = None):
     '''
     Harmonize data and return "the harmonization model", a model that keeps estimated parameters
     for the harmonized reference dataset.
@@ -46,10 +45,10 @@ def nh_learn_ref_model(df_data, df_cov, batch_col, cat_cols = [],
     
     Arguments
     ---------
-    df_data (REQUIRED): Data to harmonize, in a pandas DataFrame 
+    data (REQUIRED): Data to harmonize, in a pandas DataFrame 
         - Dimensions: n_samples x n_features
     
-    df_cov (REQUIRED): Covariates, in a pandas DataFrame 
+    covars (REQUIRED): Covariates, in a pandas DataFrame 
         - Dimensions: n_samples x n_covars;
         - All columns in df_cov that are not labeled as one of batch_col, cat_cols, spline_cols 
           or ignore_cols are considered as numerical columns that will be corrected using a linear fit
@@ -65,15 +64,8 @@ def nh_learn_ref_model(df_data, df_cov, batch_col, cat_cols = [],
         - A Generalized Additive Model (GAM) with B-splines is used to calculate a smooth (non-linear) 
         fit for each spline variable
         
-    spline_bounds_min (OPTIONAL): List of min boundary values for each spline var (list of float,
-        default = None)
-
-    spline_bounds_max (OPTIONAL): List of max boundary values for each spline var (list of float,
-        default = None)
-        
     is_emp_bayes (OPTIONAL): Whether to use empirical Bayes estimates of site effects (bool, 
         default True)
-
 
     Returns
     -------
@@ -108,9 +100,8 @@ def nh_learn_ref_model(df_data, df_cov, batch_col, cat_cols = [],
 
     ## Parse input data
     logger.info('  Parsing / checking input data ...')
-    df_data, df_cov, dict_cov, dict_categories = parse_init_data(df_data, df_cov, batch_col, cat_cols, spline_cols,
-                                                                 spline_bounds_min, spline_bounds_max, ignore_cols,
-                                                                 out_file_name)
+    df_data, df_cov, dict_cov, dict_categories = parse_init_data(data, covars, batch_col, 
+                                                                 cat_cols, spline_cols, ignore_cols)
 
     logger.info('------------------------------ Prep Data -----------------------------')
     

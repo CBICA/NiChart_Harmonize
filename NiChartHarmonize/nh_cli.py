@@ -35,17 +35,17 @@ def main():
                         required=True)
 
     # Model file
-    help = "The model to use for harmonization (only for action apply). Can be either a "\
-            + "string filepath of a .pkl.gz file or a tuple (dict, dict)."
-    parser.add_argument("-m", 
+    help = "The model file"
+    parser.add_argument("-m",
+                        "--model", 
                         type=str,
                         help=help, 
                         default=None, 
                         required=True)
 
-    # Key var name
-    help = "The primary key field that links data and covariates"
-    parser.add_argument("--fkey", 
+    # Model file
+    help = "The out data file"
+    parser.add_argument("--out", 
                         type=str,
                         help=help, 
                         default=None, 
@@ -53,7 +53,7 @@ def main():
 
     # Batch var name
     help = "Batch field name used for harmonization"
-    parser.add_argument("--fbatch", 
+    parser.add_argument("--batch_col", 
                         type=str,
                         help=help, 
                         default=None, 
@@ -61,34 +61,34 @@ def main():
 
     # Categorical vars name
     help = "Categorical field names"
-    parser.add_argument("--fcat", 
+    parser.add_argument("--cat_cols", 
                         type=str,
-                        action='append', 
+                        #action='append', 
                         nargs='+',
                         help=help, 
-                        default=None, 
+                        default=[], 
                         required=False)
 
     # Spline vars name
     help = "Field names to ignore"
-    parser.add_argument("--fignore", 
+    parser.add_argument("--spline_cols", 
                         type=str,
-                        action='append', 
+                        #action='append', 
                         nargs='+',
                         help=help, 
-                        default=None, 
-                        required=False)
-
-    # Ignore vars name
-    help = "Field names to ignore"
-    parser.add_argument("--fspline", 
-                        type=str,
-                        action='append', 
-                        nargs='+',
-                        help=help, 
-                        default=None, 
+                        default=[], 
                         required=False)
     
+    # Ignore vars name
+    help = "Field names to ignore"
+    parser.add_argument("--ignore_cols", 
+                        type=str,
+                        #action='append', 
+                        nargs='+',
+                        help=help, 
+                        default=[], 
+                        required=False)
+
     # Verbosity argument
     help = "Verbosity"
     parser.add_argument("-v", 
@@ -96,29 +96,21 @@ def main():
                         help=help, 
                         default=1, 
                         required=False)
-    
-    # Save_path argument
-    help = "Path to save the trained model. '.pkl.gz' file extension "\
-            + "expected. If None is given, no model will be saved."
-    parser.add_argument("-s", 
-                        type=str, 
-                        help=help, 
-                        default='', 
-                        required=False)
-    
+        
     args = parser.parse_args()
+    
+    ## Print args
     print(args)
+    print('aaa')
     input()
     
-    ## Call harmonize functions
-    df_data = pd.read_csv(args.data)
-    df_cov = pd.read_csv(args.covars)
-    
+    ## Call harmonize functions  
     if args.action == 'learn':
-        mdlOut, dfOut = nh_learn_ref_model(df_data, df_cov, batch_col = 'Study',
-                                                          spline_cols = ['Age_At_Visit'],
-                                                          spline_bounds_min = [20], 
-                                                          spline_bounds_max = [115])
+        mdlOut, dfOut = nh_learn_ref_model(args.data, args.covars, args.batch_col, args.cat_cols,  
+                                           args.ignore_cols, args.spline_cols)
+    #if args.action == 'apply':
+        #mdlOut, dfOut = nh_apply_model(args.data, args.covars, args.fbatch,
+                                           #args.fspline, args.spline_min, args.spline_max)
     
     
     

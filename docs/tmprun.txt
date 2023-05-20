@@ -4,5 +4,9 @@ conda activate NeuroHARM
 pip install .
 
 tmpdir='/home/guraylab/AIBIL/Github/NiChartPackages/NiChartDataPrep/outputs/view4_concat'
-
 neuroharm -a learn --data ${tmpdir}/ISTAGING_DATA.csv --covars ${tmpdir}/ISTAGING_COV.csv -m MMM -s SSS
+
+
+tmpdir='/home/guray/Github/NiChartPackages/NiChartDataPrep/outputs/view4_concat'
+
+neuroharm -a learn --data ${tmpdir}/ISTAGING_DATA.csv --covars ${tmpdir}/ISTAGING_COV.csv --model MMM --batch_col Study --cat_cols IsF --spline_cols Age_At_Visit

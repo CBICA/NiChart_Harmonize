@@ -6,6 +6,7 @@ import pandas as pd
 from statsmodels.gam.api import GLMGam, BSplines
 import numpy.linalg as la
 import copy
+from typing import Union, Tuple
 
 import pickle
 #import dill
@@ -22,7 +23,7 @@ logger.setLevel(logging.INFO)    ## FIXME Comments will be removed in release ve
 #pwd='/home/guray/Github/neuroHarmonizeV2/neuroHarmonizeV2'
 #sys.path.append(pwd)
 
-from .nh_utils import parse_init_data_and_model, make_dict_batches, make_design_dataframe_using_model, update_spline_vars_using_model, standardize_across_features_using_model, update_model_new_batch, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_results
+from .nh_utils import parse_init_data_and_model, make_dict_batches, make_design_dataframe_using_model, update_spline_vars_using_model, standardize_across_features_using_model, update_model_new_batch, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_csv
 
 #from nh_utils import fitLSModelAndFindPriorsV2
 
@@ -32,8 +33,13 @@ from .nh_utils import parse_init_data_and_model, make_dict_batches, make_design_
 #save_to_pickle(fname, [df_cov, batch_col, model])
 
 
-def nh_harmonize_to_ref(model, df_data, df_cov, ignore_saved_batch_params = False, 
-                        out_file_name = None):
+def nh_harmonize_to_ref(model : Union[dict, str],
+                        data : Union[pd.DataFrame, str],
+                        covars : Union[pd.DataFrame, str],
+                        ignore_saved_batch_params = False,
+                        out_model : str = None,
+                        out_csv : str = None
+                        ) -> Tuple[dict, pd.DataFrame]:
 
     '''
     Harmonize each batch in the input dataset to the reference data (the input model):
@@ -73,9 +79,16 @@ def nh_harmonize_to_ref(model, df_data, df_cov, ignore_saved_batch_params = Fals
     
     logger.info('------------------------------ Read Data -----------------------------')
 
-    ## Read model vars
-    logger.info('  Reading model variables ...')    
-    mdl_out = copy.deepcopy(model)
+    logger.info('  Reading model ...' + model)
+
+    ## Read model file
+    if isinstance(model, str):
+        fmdl = open(model, 'rb')
+        mdl_out = pickle.load(fmdl)
+        fmdl.close()
+    else:
+        mdl_out = copy.deepcopy(model)
+        
     mdl_batches = mdl_out['mdl_batches']
     mdl_ref = mdl_out['mdl_ref']
     batch_col = mdl_ref['dict_cov']['batch_col']
@@ -83,8 +96,7 @@ def nh_harmonize_to_ref(model, df_data, df_cov, ignore_saved_batch_params = Fals
     ## Parse and check data
     logger.info('  Parsing / checking input data ...')    
     
-    df_data, df_cov, dict_cov, dict_categories = parse_init_data_and_model(df_data, df_cov, 
-                                                                           out_file_name, mdl_ref)
+    df_key, df_data, df_cov, dict_cov, dict_categories = parse_init_data_and_model(data, covars, mdl_ref)
 
     ##################################################################
     ## Harmonize each batch individually
@@ -102,8 +114,8 @@ def nh_harmonize_to_ref(model, df_data, df_cov, ignore_saved_batch_params = Fals
         
         ## Select batch
         ind_curr = df_cov[df_cov[batch_col] == curr_batch].index.tolist() 
-        df_cov_curr = df_cov.loc[ind_curr, :]
-        df_cov_curr = df_cov_curr.reset_index(drop = True)
+                
+        df_cov_curr = df_cov.loc[ind_curr, :].copy().reset_index(drop = True)
         df_data_curr = df_data.loc[ind_curr, :].copy().reset_index(drop = True)
 
         logger.info('  ------------------------------ Prep Data -----------------------------')
@@ -196,7 +208,7 @@ def nh_harmonize_to_ref(model, df_data, df_cov, ignore_saved_batch_params = Fals
         ## Update harmonized data df
 
         logger.info('  ------------------------------ Update h_data  ------------------------------')
-        df_h_data.loc[ind_curr, :] = df_h_data_curr
+        df_h_data.loc[ind_curr, :] = df_h_data_curr.values
         
     ###################################################################
     ## Prepare output
@@ -208,14 +220,19 @@ def nh_harmonize_to_ref(model, df_data, df_cov, ignore_saved_batch_params = Fals
     
     ## Create out dataframe
     param_out_suff = '_HARM'    
-    df_out = pd.concat([df_cov, df_h_data.add_suffix(param_out_suff)], axis=1)
+    df_out = pd.concat([df_key, df_cov, df_h_data.add_suffix(param_out_suff)], axis=1)
 
     ###################################################################
     ## Return output
-    if out_file_name != None:
-        logger.info('  Saving output to:\n    ' + out_file_name)        
-        save_results([mdl_out, df_out], out_file_name)
+    if out_model is not None:
+        logger.info('  Saving output model to:\n    ' + out_model)
+        save_model(mdl_out, out_model)
+
+    if out_csv is not None:
+        logger.info('  Saving output data to:\n    ' + out_csv)
+        save_csv(df_out, out_csv)
 
     logger.info('  Process completed \n')    
+
     return mdl_out, df_out
     

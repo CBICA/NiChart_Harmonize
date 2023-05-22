@@ -10,6 +10,7 @@ from statsmodels.gam.gam_cross_validation.cross_validators import KFold
 import pickle
 #import dill
 import logging
+from typing import Union
 
 ## Set logging
 format='%(levelname)-8s [%(filename)s : %(lineno)d - %(funcName)20s()] %(message)s'
@@ -191,26 +192,55 @@ def find_parametric_adjustments(df_s_data, dict_LS, dict_batches, is_emp_bayes):
 
     return df_gamma_star, df_delta_star
 
-def save_results(results, out_file_name):
+def save_model(out_model, out_file_name):
     """
-    Save harmonization results as a pickle file
+    Save model as a pickle file
     """
+
+    ## Set extension to .pkl.gz, if it's not
+    out_file_name = out_file_name.rstrip('.pkl.gz') + '.pkl.gz'
+
+    ## Make output dir, if it does not exists
     out_file_name_full = os.path.abspath(out_file_name)
     out_dir = os.path.dirname(out_file_name_full)
-
     if os.path.exists(out_dir) == False:
         os.makedirs(out_dir)
 
+    ## Check out file
     if os.path.exists(out_file_name_full):
         raise ValueError('Out file already exists: %s. Change name or delete to save.' % out_file_name_full)
 
+    ## Save out file
     out_file = open(out_file_name, 'wb')
-    pickle.dump(results, out_file)
+    pickle.dump(out_model, out_file)
     out_file.close()
+
+def save_csv(out_df, out_file_name):
+    """
+    Save dataframe as a csv file
+    """
+
+    ## Set extension to .csv, if it's not
+    out_file_name = out_file_name.rstrip('.csv') + '.csv'
+
+    ## Make output dir, if it does not exists
+    out_file_name_full = os.path.abspath(out_file_name)
+    out_dir = os.path.dirname(out_file_name_full)
+    if os.path.exists(out_dir) == False:
+        os.makedirs(out_dir)
+
+    ## Check out file
+    if os.path.exists(out_file_name_full):
+        raise ValueError('Out file already exists: %s. Change name or delete to save.' % out_file_name_full)
+
+    ## Save out file
+    out_df.to_csv(out_file_name_full, index = False)
+
 
 #####################################################################################
 ## Functions specific to LearnRefModel
-def parse_init_data(data, covars, batch_col, categoric_cols, spline_cols, ignore_cols):
+def parse_init_data(data : Union[pd.DataFrame, str], covars : Union[pd.DataFrame, str], 
+                    batch_col, categoric_cols, spline_cols, ignore_cols):
     """ 
     Read initial data, verify it, and extract meta data about variables
     """
@@ -239,13 +269,18 @@ def parse_init_data(data, covars, batch_col, categoric_cols, spline_cols, ignore
         else:
             return df_data, df_cov, dict_cov, dict_categories
 
-    ## Delete first column of data and covars
-    df_data = df_data[df_data.columns[1:]]
-    df_cov = df_cov[df_cov.columns[1:]]
-
     ## Reset index for data and covar dataframes
     df_data = df_data.reset_index(drop = True)
     df_cov = df_cov.reset_index(drop = True)
+
+    ## Check key column in data and covars
+    df_key = None
+    key_col = df_data.columns.tolist()[0]
+    if df_cov.columns.tolist()[0] == key_col:       ## First column is the key
+        df_key = df_data[df_data.columns[0]]
+        df_data = df_data[df_data.columns[1:]]
+        df_cov = df_cov[df_cov.columns[1:]]
+        logger.info('Common key column detected in data and covars: ' + key_col)
 
     ## Verify input columns exist
     cols_combined = [batch_col] + categoric_cols + spline_cols
@@ -276,9 +311,12 @@ def parse_init_data(data, covars, batch_col, categoric_cols, spline_cols, ignore
 
     ## Create dictionary of covars
     
-    ## FIXME
-    spline_bounds_min = [20]
-    spline_bounds_max = [120]
+    ## Add
+    spline_bounds_min = []
+    spline_bounds_max = []
+    for tmp_col in spline_cols:
+        spline_bounds_min.append(df_cov[tmp_col].min())
+        spline_bounds_max.append(df_cov[tmp_col].max())
     
     dict_cov = {'covar_cols_all' : covar_cols_all, 'batch_col' : batch_col, 
                 'numeric_cols' : numeric_cols, 'categoric_cols' : categoric_cols, 
@@ -291,7 +329,7 @@ def parse_init_data(data, covars, batch_col, categoric_cols, spline_cols, ignore
         categoric_vals = df_cov[tmp_var].unique().tolist()
         dict_categories[tmp_var] = categoric_vals 
 
-    return df_data, df_cov, dict_cov, dict_categories
+    return df_key, df_data, df_cov, dict_cov, dict_categories
 
 
 def make_design_dataframe(df_cov, dict_cov):
@@ -534,30 +572,51 @@ def standardize_across_features(df_data, df_design, df_B_hat, dict_design, dict_
 #####################################################################################
 ## Functions specific to HarmonizeToRef
 
-def parse_init_data_and_model(df_data, df_cov, out_file_name, mdl):
+def parse_init_data_and_model(data : Union[pd.DataFrame, str], 
+                              covars : Union[pd.DataFrame, str], 
+                              mdl):
     '''
         Verify that init data matches the model
         Extract dictionaries for variables and batches
     '''
     
-    ## Check output file
-    if out_file_name != None:
-        out_file_name_full = os.path.abspath(out_file_name)
-        if os.path.exists(out_file_name_full):
-            raise ValueError('Out file already exists: %s. Change name or delete to save.' % out_file_name)
+    ## Set out variables
+    df_data = None
+    df_cov = None
+    dict_cov = None
+    dict_categories = None
     
-    ## Verify data dataframe
-    if not isinstance(df_data, pd.DataFrame):
-        raise ValueError('Data must be a pandas dataframe')
+    ## Verify data
+    if isinstance(data, pd.DataFrame):
+        df_data = data.copy()
+    else:
+        if os.path.exists(data):
+            df_data = pd.read_csv(data)
+        else:
+            return df_data, df_cov, dict_cov, dict_categories
 
-    ## Verify covar dataframe
-    if not isinstance(df_cov, pd.DataFrame):
-        raise ValueError('Covars must be a pandas dataframe')
+    ## Verify covars
+    if isinstance(covars, pd.DataFrame):
+        df_cov = covars.copy()
+    else:
+        if os.path.exists(covars):
+            df_cov = pd.read_csv(covars)
+        else:
+            return df_data, df_cov, dict_cov, dict_categories
 
     ## Reset index for data and covar dataframes
     df_data = df_data.reset_index(drop = True)
     df_cov = df_cov.reset_index(drop = True)
 
+    ## Check key column in data and covars
+    df_key = None
+    key_col = df_data.columns.tolist()[0]
+    if df_cov.columns.tolist()[0] == key_col:       ## First column is the key
+        df_key = df_data[df_data.columns[0]]
+        df_data = df_data[df_data.columns[1:]]
+        df_cov = df_cov[df_cov.columns[1:]]
+        logger.info('Common key column detected in data and covars: ' + key_col)
+    
     ## Read covars from the model
     dict_cov = mdl['dict_cov']
     
@@ -598,13 +657,16 @@ def parse_init_data_and_model(df_data, df_cov, out_file_name, mdl):
         df_cov = df_cov[df_cov[tmp_col].isin(tmp_vals)]  ##   Remove rows with values different than those in model
     
     df_data = df_data.loc[df_cov.index]           ## Remove deleted rows from the data dataframe
+    if df_key is not None:
+        df_key = df_key.loc[df_cov.index]
+        
     num_sample_new = df_cov.shape[0]
     num_diff = num_sample_init - num_sample_new
     if num_diff != 0:
         logger.info('WARNING: Samples with categorical values not in model data are discarded ' + 
                     ', n removed = ' + str(num_diff))
 
-    return df_data, df_cov, dict_cov, dict_categories
+    return df_key, df_data, df_cov, dict_cov, dict_categories
 
 def make_design_dataframe_using_model(df_cov, batch_col, mdl):
     '''

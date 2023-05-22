@@ -1,4 +1,5 @@
 from .nh_learn_model import nh_learn_ref_model
+from .nh_apply_model import nh_harmonize_to_ref
 import argparse
 import pandas as pd
 from typing import Tuple, Union
@@ -35,17 +36,9 @@ def main():
                         required=True)
 
     # Model file
-    help = "The model file"
+    help = "The input model file (only for action: apply)"
     parser.add_argument("-m",
                         "--model", 
-                        type=str,
-                        help=help, 
-                        default=None, 
-                        required=True)
-
-    # Model file
-    help = "The out data file"
-    parser.add_argument("--out", 
                         type=str,
                         help=help, 
                         default=None, 
@@ -57,7 +50,7 @@ def main():
                         type=str,
                         help=help, 
                         default=None, 
-                        required=True)
+                        required=False)
 
     # Categorical vars name
     help = "Categorical field names"
@@ -89,6 +82,22 @@ def main():
                         default=[], 
                         required=False)
 
+    # Output file
+    help = "The output model"
+    parser.add_argument("--out_model", 
+                        type=str,
+                        help=help, 
+                        default=None, 
+                        required=False)
+
+    # Output data
+    help = "The output data"
+    parser.add_argument("--out_csv", 
+                        type=str,
+                        help=help, 
+                        default=None, 
+                        required=False)
+
     # Verbosity argument
     help = "Verbosity"
     parser.add_argument("-v", 
@@ -107,10 +116,11 @@ def main():
     ## Call harmonize functions  
     if args.action == 'learn':
         mdlOut, dfOut = nh_learn_ref_model(args.data, args.covars, args.batch_col, args.cat_cols,  
-                                           args.ignore_cols, args.spline_cols)
-    #if args.action == 'apply':
-        #mdlOut, dfOut = nh_apply_model(args.data, args.covars, args.fbatch,
-                                           #args.fspline, args.spline_min, args.spline_max)
+                                           args.ignore_cols, args.spline_cols, is_emp_bayes=True, 
+                                           out_model = args.out_model, out_csv = args.out_csv)
+    if args.action == 'apply':
+        mdlOut, dfOut = nh_harmonize_to_ref(args.model, args.data, args.covars,
+                                            out_model = args.out_model, out_csv = args.out_csv)
     
     
     

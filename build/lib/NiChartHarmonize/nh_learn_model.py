@@ -5,6 +5,7 @@ import pandas as pd
 from statsmodels.gam.api import GLMGam, BSplines
 import numpy.linalg as la
 import copy
+from typing import Union, Tuple
 
 import logging
 format='%(levelname)-8s [%(filename)s : %(lineno)d - %(funcName)20s()] %(message)s'
@@ -21,22 +22,28 @@ FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 #pwd='/home/guray/Github/neuroHarmonizeV2/neuroHarmonizeV2'
 #sys.path.append(pwd)
 
-from .nh_utils import parse_init_data, make_dict_batches, make_design_dataframe, add_spline_vars, calc_B_hat, standardize_across_features, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_results
+from .nh_utils import parse_init_data, make_dict_batches, make_design_dataframe, add_spline_vars, calc_B_hat, standardize_across_features, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_csv
 
 
-    ##############################
-    #### FIXME SAVE VARS FOR DEBUG
+##############################
+#### FIXME SAVE VARS FOR DEBUG
+###import dill;
+###dill.dump([df_data, df_design, dict_cov, dict_batches, bsplines, gam_formula], open('./your_bk_dill.pkl', 'wb'));
+###if False:
     ###import dill;
-    ###dill.dump([df_data, df_design, dict_cov, dict_batches, bsplines, gam_formula], open('./your_bk_dill.pkl', 'wb'));
-    ###if False:
-        ###import dill;
-        ###[df_data, df_design, dict_cov, dict_batches, bsplines, gam_formula] = dill.load(open('./your_bk_dill.pkl', 'rb'));
-    ##############################
+    ###[df_data, df_design, dict_cov, dict_batches, bsplines, gam_formula] = dill.load(open('./your_bk_dill.pkl', 'rb'));
+##############################
 
-
-
-def nh_learn_ref_model(data, covars, batch_col, cat_cols = [], 
-                       ignore_cols = [], spline_cols = [], is_emp_bayes=True, out_file_name = None):
+def nh_learn_ref_model(data : Union[pd.DataFrame, str], 
+                       covars : Union[pd.DataFrame, str],
+                       batch_col, 
+                       cat_cols = [], 
+                       ignore_cols = [],
+                       spline_cols = [], 
+                       is_emp_bayes=True, 
+                       out_model : str = None,
+                       out_csv : str = None,
+                       ) -> Tuple[dict, pd.DataFrame]:
     '''
     Harmonize data and return "the harmonization model", a model that keeps estimated parameters
     for the harmonized reference dataset.
@@ -45,10 +52,10 @@ def nh_learn_ref_model(data, covars, batch_col, cat_cols = [],
     
     Arguments
     ---------
-    data (REQUIRED): Data to harmonize, in a pandas DataFrame 
+    data (REQUIRED): Data to harmonize, in a csv file or pandas DataFrame 
         - Dimensions: n_samples x n_features
     
-    covars (REQUIRED): Covariates, in a pandas DataFrame 
+    covars (REQUIRED): Covariates, in a csv file or pandas DataFrame 
         - Dimensions: n_samples x n_covars;
         - All columns in df_cov that are not labeled as one of batch_col, cat_cols, spline_cols 
           or ignore_cols are considered as numerical columns that will be corrected using a linear fit
@@ -100,8 +107,8 @@ def nh_learn_ref_model(data, covars, batch_col, cat_cols = [],
 
     ## Parse input data
     logger.info('  Parsing / checking input data ...')
-    df_data, df_cov, dict_cov, dict_categories = parse_init_data(data, covars, batch_col, 
-                                                                 cat_cols, spline_cols, ignore_cols)
+    df_key, df_data, df_cov, dict_cov, dict_categories = parse_init_data(data, covars, batch_col,
+                                                                         cat_cols, spline_cols, ignore_cols)
 
     logger.info('------------------------------ Prep Data -----------------------------')
     
@@ -200,12 +207,16 @@ def nh_learn_ref_model(data, covars, batch_col, cat_cols = [],
 
     ## Create out dataframe
     param_out_suff = '_HARM'
-    df_out = pd.concat([df_cov, df_h_data.add_suffix(param_out_suff)], axis=1)
+    df_out = pd.concat([df_key, df_cov, df_h_data.add_suffix(param_out_suff)], axis=1)
     
-    if out_file_name != None:
-        logger.info('  Saving output to:\n    ' + out_file_name)
-        save_results([mdl_out, df_out], out_file_name)
+    if out_model is not None:
+        logger.info('  Saving output model to:\n    ' + out_model)
+        save_model(mdl_out, out_model)
+
+    if out_csv is not None:
+        logger.info('  Saving output data to:\n    ' + out_csv)
+        save_csv(df_out, out_csv)
 
     logger.info('  Process completed \n')    
+    
     return mdl_out, df_out
-

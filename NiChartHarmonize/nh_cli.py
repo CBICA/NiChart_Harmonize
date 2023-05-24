@@ -21,15 +21,8 @@ def main():
     
     # Data file
     help = "Data file to be used as input"
-    parser.add_argument("--data", 
-                        type=str,
-                        help=help, 
-                        default=None, 
-                        required=True)
-    
-    # Covariates file
-    help = "Covariates file to be used as input"
-    parser.add_argument("--covars", 
+    parser.add_argument("-i",
+                        "--in_csv", 
                         type=str,
                         help=help, 
                         default=None, 
@@ -38,23 +31,34 @@ def main():
     # Model file
     help = "The input model file (only for action: apply)"
     parser.add_argument("-m",
-                        "--model", 
+                        "--in_model", 
                         type=str,
                         help=help, 
                         default=None, 
                         required=False)
 
-    # Batch var name
-    help = "Batch field name used for harmonization"
-    parser.add_argument("--batch_col", 
+    # Key variable
+    help = "Primary key of the data csv. If not provided, the first column is considered as the primary key"
+    parser.add_argument("-k,",
+                        "--key_var", 
                         type=str,
                         help=help, 
                         default=None, 
                         required=False)
 
-    # Categorical vars name
-    help = "Categorical field names"
-    parser.add_argument("--cat_cols", 
+    # Batch variable
+    help = "Batch variable (e.g. site, study, scanner)"
+    parser.add_argument("-b",
+                        "--batch_var", 
+                        type=str,
+                        help=help, 
+                        default=None, 
+                        required=False)
+
+    # Numeric variables
+    help = "Numeric covariates that will be modeled using a linear model"
+    parser.add_argument("-n",
+                        "--num_vars", 
                         type=str,
                         #action='append', 
                         nargs='+',
@@ -62,9 +66,21 @@ def main():
                         default=[], 
                         required=False)
 
-    # Spline vars name
-    help = "Field names to ignore"
-    parser.add_argument("--spline_cols", 
+    # Categorical variables
+    help = "Categoric covariates"
+    parser.add_argument("-c",
+                        "--cat_vars", 
+                        type=str,
+                        #action='append', 
+                        nargs='+',
+                        help=help, 
+                        default=[], 
+                        required=False)
+
+    # Spline variables
+    help = "Numeric covariates that will be modeled using a spline model"
+    parser.add_argument("-s",
+                        "--spline_vars", 
                         type=str,
                         #action='append', 
                         nargs='+',
@@ -72,9 +88,21 @@ def main():
                         default=[], 
                         required=False)
     
-    # Ignore vars name
-    help = "Field names to ignore"
-    parser.add_argument("--ignore_cols", 
+    # Variables to ignore
+    help = "Variables that will be dropped / ignored"
+    parser.add_argument("-g",
+                        "--ignore_vars", 
+                        type=str,
+                        #action='append', 
+                        nargs='+',
+                        help=help, 
+                        default=[], 
+                        required=False)
+
+    # Data variables
+    help = "Variables that will be harmonized. If not provided, all variables in the input data csv after removing other listed covariates will be used as data variables"
+    parser.add_argument("-d",
+                        "--data_vars", 
                         type=str,
                         #action='append', 
                         nargs='+',
@@ -84,7 +112,8 @@ def main():
 
     # Output file
     help = "The output model"
-    parser.add_argument("--out_model", 
+    parser.add_argument("-o",
+                        "--out_model", 
                         type=str,
                         help=help, 
                         default=None, 
@@ -92,7 +121,8 @@ def main():
 
     # Output data
     help = "The output data"
-    parser.add_argument("--out_csv", 
+    parser.add_argument("-u",
+                        "--out_csv", 
                         type=str,
                         help=help, 
                         default=None, 
@@ -113,15 +143,23 @@ def main():
     #print('aaa')
     #input()
     
-    ## Call harmonize functions  
+    ## Call harmonize functions
     if args.action == 'learn':
-        mdlOut, dfOut = nh_learn_ref_model(args.data, args.covars, args.batch_col, args.cat_cols,  
-                                           args.ignore_cols, args.spline_cols, is_emp_bayes=True, 
-                                           out_model = args.out_model, out_csv = args.out_csv)
+        mdlOut, dfOut = nh_learn_ref_model(args.in_csv, 
+                                           args.key_var, 
+                                           args.batch_var,
+                                           args.num_vars, 
+                                           args.cat_vars, 
+                                           args.spline_vars, 
+                                           args.ignore_vars, 
+                                           args.data_vars,                                            
+                                           is_emp_bayes=True, 
+                                           out_model = args.out_model, 
+                                           out_csv = args.out_csv)
     if args.action == 'apply':
-        mdlOut, dfOut = nh_harmonize_to_ref(args.model, args.data, args.covars,
-                                            out_model = args.out_model, out_csv = args.out_csv)
+        mdlOut, dfOut = nh_harmonize_to_ref(args.in_csv, 
+                                            args.in_model,
+                                            out_model = args.out_model,
+                                            out_csv = args.out_csv)
     
-    
-    
-    return
+    return;

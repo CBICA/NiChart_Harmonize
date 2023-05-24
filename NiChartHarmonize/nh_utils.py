@@ -239,8 +239,8 @@ def save_csv(out_df, out_file_name):
 
 #####################################################################################
 ## Functions specific to LearnRefModel
-def parse_init_data(data : Union[pd.DataFrame, str], covars : Union[pd.DataFrame, str], 
-                    batch_col, categoric_cols, spline_cols, ignore_cols):
+def parse_init_data(in_data : Union[pd.DataFrame, str], batch_col, 
+                    categoric_cols, spline_cols, ignore_cols):
     """ 
     Read initial data, verify it, and extract meta data about variables
     """

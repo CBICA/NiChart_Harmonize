@@ -34,12 +34,14 @@ from .nh_utils import parse_init_data, make_dict_batches, make_design_dataframe,
     ###[df_data, df_design, dict_cov, dict_batches, bsplines, gam_formula] = dill.load(open('./your_bk_dill.pkl', 'rb'));
 ##############################
 
-def nh_learn_ref_model(data : Union[pd.DataFrame, str], 
-                       covars : Union[pd.DataFrame, str],
-                       batch_col, 
-                       cat_cols = [], 
-                       ignore_cols = [],
-                       spline_cols = [], 
+def nh_learn_ref_model(in_data : Union[pd.DataFrame, str], 
+                       key_var, 
+                       batch_var, 
+                       num_vars = [], 
+                       cat_vars = [], 
+                       spline_vars = [], 
+                       ignore_vars = [],
+                       data_vars = [],
                        is_emp_bayes=True, 
                        out_model : str = None,
                        out_csv : str = None,
@@ -54,22 +56,31 @@ def nh_learn_ref_model(data : Union[pd.DataFrame, str],
     ---------
     data (REQUIRED): Data to harmonize, in a csv file or pandas DataFrame 
         - Dimensions: n_samples x n_features
-    
-    covars (REQUIRED): Covariates, in a csv file or pandas DataFrame 
-        - Dimensions: n_samples x n_covars;
-        - All columns in df_cov that are not labeled as one of batch_col, cat_cols, spline_cols 
-          or ignore_cols are considered as numerical columns that will be corrected using a linear fit
+        - All columns in in_data that are not labeled as one of key_var, batch_var, cat_vars, 
+          num_vars, spline_vars or ignore_vars are considered as data variables that will be corrected.
             
-    batch_col (REQUIRED): The batch variable (example: "Study", or "Site") (str, should match one of
-        df_cov columns)
+    key_var (OPTIONAL): The primary variable (example: "MRID") (str, should match one of
+        in_data columns; if not set, first column is selected as the default primary key)
+
+    batch_var (REQUIRED): The batch variable (example: "Study", or "Site") (str, should match one of
+        in_data columns)
         
-    cat_cols (OPTIONAL): List of categorical columns (list of str, should match items in df_cov columns,
+    num_vars (OPTIONAL): List of numerical variables (list of str, should match items in in_data columns,
+        default = [])
+        
+    cat_vars (OPTIONAL): List of categorical variables (list of str, should match items in in_data columns,
         default = [])
     
-    spline_cols (OPTIONAL): List of spline columns (list of str, should match items in df_cov columns,
+    spline_vars (OPTIONAL): List of spline variables (list of str, should match items in in_data columns,
         default = []) 
         - A Generalized Additive Model (GAM) with B-splines is used to calculate a smooth (non-linear) 
         fit for each spline variable
+
+    ignore_vars (OPTIONAL): List of variables to ignore (list of str, should match items in in_data columns,
+        default = [])
+        
+    data_vars (OPTIONAL): List of variables that will be corrected (list of str, should match items in in_data  
+        columns; if not set, all columns in in_data other than those listed as a covariate will be considered as data columns)
         
     is_emp_bayes (OPTIONAL): Whether to use empirical Bayes estimates of site effects (bool, 
         default True)
@@ -81,7 +92,7 @@ def nh_learn_ref_model(data : Union[pd.DataFrame, str],
         model_ref:  A dictionary with estimated values for the reference dataset
             dict_cov: A dictionary of covariates
             dict_categories: A dictionary of categorical variables and their values
-            dict_design: A dictionary of design matrix columns
+            dict_design: A dictionary of design matrix variables
             bsplines: Bspline model estimated for spline (non-linear) variables
             df_B_hat: Estimated beta parameters for covariates
             df_pooled_stats: Estimated pooled data parameters (grand-mean and pooled variance)
@@ -107,22 +118,22 @@ def nh_learn_ref_model(data : Union[pd.DataFrame, str],
 
     ## Parse input data
     logger.info('  Parsing / checking input data ...')
-    df_key, df_data, df_cov, dict_cov, dict_categories = parse_init_data(data, covars, batch_col,
-                                                                         cat_cols, spline_cols, ignore_cols)
+    df_key, df_data, in_data, dict_cov, dict_categories = parse_init_data(in_data, batch_var,
+                                                                         cat_vars, spline_vars, ignore_vars)
 
     logger.info('------------------------------ Prep Data -----------------------------')
     
     ## Create dictionary with batch info
     logger.info('  Creating batch info dict ...')
-    dict_batches = make_dict_batches(df_cov, batch_col)
+    dict_batches = make_dict_batches(in_data, batch_var)
 
     ## Create design dataframe      
     logger.info('  Creating design matrix ...')
-    df_design, dict_design = make_design_dataframe(df_cov, dict_cov)    
+    df_design, dict_design = make_design_dataframe(in_data, dict_cov)    
 
     ## Add spline terms to the design dataframe
     logger.info('  Adding spline terms to design matrix ...')
-    df_design, dict_design, bsplines, gam_formula = add_spline_vars(df_design, dict_design, df_cov, dict_cov)
+    df_design, dict_design, bsplines, gam_formula = add_spline_vars(df_design, dict_design, in_data, dict_cov)
 
     ##################################################################
     ## COMBAT Step 1: Standardize dataset
@@ -164,10 +175,10 @@ def nh_learn_ref_model(data : Union[pd.DataFrame, str],
     logger.info('------------------------------ Prepare Output ------------------------------')
 
     ## Keep B_hat values for batches in a separate dictionary 
-    df_B_hat_batches = df_B_hat.loc[dict_batches['design_batch_cols'], :]   
+    df_B_hat_batches = df_B_hat.loc[dict_batches['design_batch_vars'], :]   
     
-    ## In reference dict keep only B_hat values for non-batch columns
-    df_B_hat = df_B_hat.loc[dict_design['non_batch_cols'], :]
+    ## In reference dict keep only B_hat values for non-batch variables
+    df_B_hat = df_B_hat.loc[dict_design['non_batch_vars'], :]
 
     ## Create output for the ref model
     mdl_ref = {'dict_cov' : dict_cov, 'dict_categories' : dict_categories, 
@@ -176,7 +187,7 @@ def nh_learn_ref_model(data : Union[pd.DataFrame, str],
                'is_emp_bayes' : is_emp_bayes}
 
     ## Create output for the batches
-    #dict_batches = {k:v for k, v in dict_batches.items() if k in ('batch_values', 'design_batch_cols', 
+    #dict_batches = {k:v for k, v in dict_batches.items() if k in ('batch_values', 'design_batch_vars', 
                                                                   #'n_batches')}
 
     batch_values = dict_batches['batch_values']
@@ -207,7 +218,7 @@ def nh_learn_ref_model(data : Union[pd.DataFrame, str],
 
     ## Create out dataframe
     param_out_suff = '_HARM'
-    df_out = pd.concat([df_key, df_cov, df_h_data.add_suffix(param_out_suff)], axis=1)
+    df_out = pd.concat([df_key, in_data, df_h_data.add_suffix(param_out_suff)], axis=1)
     
     if out_model is not None:
         logger.info('  Saving output model to:\n    ' + out_model)

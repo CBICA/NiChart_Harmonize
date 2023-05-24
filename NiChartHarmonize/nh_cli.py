@@ -108,10 +108,10 @@ def main():
         
     args = parser.parse_args()
     
-    ## Print args
-    print(args)
-    print('aaa')
-    input()
+    ### Print args
+    #print(args)
+    #print('aaa')
+    #input()
     
     ## Call harmonize functions  
     if args.action == 'learn':

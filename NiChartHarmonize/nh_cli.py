@@ -39,7 +39,7 @@ def main():
 
     # Key variable
     help = "Primary key of the data csv. If not provided, the first column is considered as the primary key"
-    parser.add_argument("-k,",
+    parser.add_argument("-k",
                         "--key_var", 
                         type=str,
                         help=help, 

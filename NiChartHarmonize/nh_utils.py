@@ -288,6 +288,92 @@ def save_csv(out_df, out_file_name):
 
 #####################################################################################
 ## Functions specific to LearnRefModel
+def make_dict_vars(df_in, key_var, batch_var, num_vars,
+                   cat_vars, spline_vars, ignore_vars, data_vars):
+    """ 
+    Make a dictionary of all variables
+    """
+
+    ## Get variable lists
+    all_columns = df_in.columns.tolist()
+    cov_columns = num_vars + cat_vars + spline_vars
+    non_data_columns = [key_var, batch_var] + cov_columns + ignore_vars
+    if len(data_vars) == 0:
+        data_vars = [x for x in all_columns if x not in non_data_columns]
+
+    ## Create dictionary of covars    
+    dict_vars = {'covars_all' : cov_columns, 
+                 'batch_var' : batch_var,
+                 'num_vars' : num_vars,
+                 'cat_vars' : cat_vars,
+                 'spline_vars' : spline_vars,
+                 'spline_bounds_min' : spline_bounds_min,
+                 'spline_bounds_max' : spline_bounds_max,
+                 'ignore_vars': ignore_vars
+                 'data_vars': data_vars
+                 }
+    
+    ## Return dictionary
+    return dict_vars
+
+def make_dict_cat(df_in, cat_vars):
+    ## Make a dictionary of categorical variables
+    
+    ## Find unique values for each categorical variable
+    dict_cat ={}
+    for tmp_var in cat_vars:
+        cat_vals = df_in[tmp_var].unique().tolist()
+        dict_cat[tmp_var] = cat_vals 
+
+    ## Return dictionary
+    return dict_cat
+
+
+def get_spline_bounds(df_in, spline_vars):
+    """ 
+    Calculate bounds for spline columns
+    """
+    ## Add spline bounds (min and max of each spline var)
+    spline_bounds_min = []
+    spline_bounds_max = []
+    for tmp_var in spline_vars:
+        spline_bounds_min.append(df_cov[tmp_var].min())
+        spline_bounds_max.append(df_cov[tmp_var].max())
+
+    
+    ## Split input dataframe into covars and data
+    try:
+        df_cov = df_in[[key_var, batch_var] + cov_columns]
+    except:
+        msg = "Could not extract covariate columns from input data: " + cov_columns
+        return msg
+
+    if len(data_vars) != 0:
+        try:
+            df_data = df_in[data_vars]            
+        except:
+            msg = "Could not extract data columns from input data: " + data_vars
+            return msg
+    else:
+        try:
+            df_data = df_in.drop(non_data_columns, axis = 1, errors='ignore')
+        except:
+            msg = "Could not extract data columns by dropping: " + non_data_columns
+            return msg
+
+    ## Replace special characters in batch values
+    ## FIXME Special characters fail in GAM formula
+    ##   Update this using patsy quoting in next version
+    df_cov.loc[:, batch_var] = df_cov[batch_var].str.replace('-', '_').str.replace(' ', '_')
+    df_cov.loc[:, batch_var] = df_cov[batch_var].str.replace('.', '_').str.replace('/', '_')
+    
+    ## FIXME Remove null values in data dataframe (TODO)
+    
+    ## FIXME Remove null values in covar dataframe (TODO)
+    
+
+
+
 def parse_init_data(df_in, key_var, batch_var, num_vars,
                     cat_vars, spline_vars, ignore_vars, data_vars):
     """ 
@@ -337,7 +423,7 @@ def parse_init_data(df_in, key_var, batch_var, num_vars,
         spline_bounds_max.append(df_cov[tmp_var].max())
 
     ## Create dictionary of covars    
-    dict_cov = {'covars_all' : cov_columns, 'batch_var' : batch_var, 
+    dict_vars = {'covars_all' : cov_columns, 'batch_var' : batch_var, 
                 'num_vars' : num_vars, 'cat_vars' : cat_vars, 
                 'spline_vars' : spline_vars, 'spline_bounds_min' : spline_bounds_min,
                 'spline_bounds_max' : spline_bounds_max, 'ignore_vars': ignore_vars}
@@ -348,10 +434,9 @@ def parse_init_data(df_in, key_var, batch_var, num_vars,
         cat_vals = df_cov[tmp_var].unique().tolist()
         dict_cat[tmp_var] = cat_vals 
 
-    return df_data, df_cov, dict_cov, dict_cat
+    return df_data, df_cov, dict_vars, dict_cat
 
-
-def make_design_dataframe(df_cov, dict_cov):
+def make_design_dataframe(df_cov, dict_vars):
     """
     Expand the covariates dataframe adding columns that will constitute the design matrix
     New columns in the output dataframe are: 
@@ -370,20 +455,20 @@ def make_design_dataframe(df_cov, dict_cov):
     design_vars = []
 
     ## Add one-hot encoding of batch variable
-    df_tmp = pd.get_dummies(df_design_out[dict_cov['batch_var']], prefix = dict_cov['batch_var'], dtype = float)
+    df_tmp = pd.get_dummies(df_design_out[dict_vars['batch_var']], prefix = dict_vars['batch_var'], dtype = float)
     design_batch_vars = df_tmp.columns.tolist()
     df_design_out = pd.concat([df_design_out, df_tmp], axis = 1)
     design_vars = design_vars + design_batch_vars
 
     ## Add numeric variables
     ##   Numeric variables do not need any manipulation; just add them to the list of design variables
-    num_vars = dict_cov['num_vars']
+    num_vars = dict_vars['num_vars']
     design_vars = design_vars + num_vars
     dict_design['num_vars'] = num_vars
 
     ## Add one-hot encoding for each categoric variable
     cat_vars = []
-    for tmp_var in dict_cov['cat_vars']:
+    for tmp_var in dict_vars['cat_vars']:
         df_tmp = pd.get_dummies(df_design_out[tmp_var], prefix = tmp_var, drop_first = True, 
                                 dtype = float)
         df_design_out = pd.concat([df_design_out, df_tmp], axis = 1)
@@ -419,7 +504,7 @@ def calc_spline_model(df_spline, spline_bounds_min = None, spline_bounds_max = N
     ## Return spline model
     return bsplines
 
-def add_spline_vars(df_design, dict_design, df_cov, dict_cov):
+def add_spline_vars(df_design, dict_design, df_cov, dict_vars):
     """
     Add columns for spline variables to design dataframe
         - spline basis columns for each spline var (based on Ray's implementation)
@@ -432,9 +517,9 @@ def add_spline_vars(df_design, dict_design, df_cov, dict_cov):
     design_vars = df_design.columns.tolist()
 
     ## Get dict vars
-    spline_vars = dict_cov['spline_vars']
-    spline_bounds_min = dict_cov['spline_bounds_min']
-    spline_bounds_max = dict_cov['spline_bounds_max']
+    spline_vars = dict_vars['spline_vars']
+    spline_bounds_min = dict_vars['spline_bounds_min']
+    spline_bounds_max = dict_vars['spline_bounds_max']
 
     ## Add spline basis for spline variables
     bsplines = None
@@ -618,10 +703,10 @@ def parse_init_data_and_model(in_data : Union[pd.DataFrame, str], mdl):
     list_columns = df_in.columns.tolist()
     
     ## Read covars from the model
-    dict_cov = mdl['dict_cov']
+    dict_vars = mdl['dict_vars']
     
     ## Read batch col from the model
-    batch_var = dict_cov['batch_var']
+    batch_var = dict_vars['batch_var']
 
     ## Read categories from the model
     dict_cat = mdl['dict_cat']
@@ -659,11 +744,11 @@ def parse_init_data_and_model(in_data : Union[pd.DataFrame, str], mdl):
     ## FIXME Remove null values in covar dataframe (TODO)
     
     ## Remove columns that should be ignored
-    df_data = df_data.drop(dict_cov['ignore_vars'], axis=1, errors='ignore')
+    df_data = df_data.drop(dict_vars['ignore_vars'], axis=1, errors='ignore')
 
     ## Remove rows with categorical values not present in model data
     num_sample_init = df_cov.shape[0]
-    for tmp_var in dict_cov['cat_vars']:         ## For each cat var from the dict_cov that was saved in model
+    for tmp_var in dict_vars['cat_vars']:         ## For each cat var from the dict_vars that was saved in model
         tmp_vals = dict_cat[tmp_var]         ##   Read values of the cat var
         df_cov = df_cov[df_cov[tmp_var].isin(tmp_vals)]  ##   Remove rows with values different than those in model
     
@@ -677,7 +762,7 @@ def parse_init_data_and_model(in_data : Union[pd.DataFrame, str], mdl):
         logger.info('WARNING: Samples with categorical values not in model data are discarded ' + 
                     ', n removed = ' + str(num_diff))
 
-    return df_key, df_data, df_cov, dict_cov, dict_cat
+    return df_key, df_data, df_cov, dict_vars, dict_cat
 
 def make_design_dataframe_using_model(df_cov, batch_var, mdl):
     '''
@@ -688,8 +773,8 @@ def make_design_dataframe_using_model(df_cov, batch_var, mdl):
             - column for each continuous_vars
             - spline variables are skipped (added later in a separate function)
     '''
-    cat_vars = mdl['dict_cov']['cat_vars']
-    spline_vars = mdl['dict_cov']['spline_vars']    
+    cat_vars = mdl['dict_vars']['cat_vars']
+    spline_vars = mdl['dict_vars']['spline_vars']    
     mdl_dict_design = mdl['dict_design']
     mdl_dict_cat = mdl['dict_cat']
     
@@ -754,7 +839,7 @@ def update_spline_vars_using_model(df_design, df_cov, mdl):
     '''
     
     ## Read mdl spline vars
-    spline_vars = mdl['dict_cov']['spline_vars']
+    spline_vars = mdl['dict_vars']['spline_vars']
     bsplines = mdl['bsplines']
     
     ## Make output dataframe

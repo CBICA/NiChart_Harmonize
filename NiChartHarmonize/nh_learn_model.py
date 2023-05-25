@@ -28,10 +28,10 @@ from .nh_utils import read_data, check_key, make_dict_batches, make_design_dataf
 ##############################
 #### FIXME SAVE VARS FOR DEBUG
 ###import dill;
-###dill.dump([df_data, df_design, dict_cov, dict_batches, bsplines, gam_formula], open('./your_bk_dill.pkl', 'wb'));
+###dill.dump([df_data, df_design, dict_vars, dict_batches, bsplines, gam_formula], open('./your_bk_dill.pkl', 'wb'));
 ###if False:
     ###import dill;
-    ###[df_data, df_design, dict_cov, dict_batches, bsplines, gam_formula] = dill.load(open('./your_bk_dill.pkl', 'rb'));
+    ###[df_data, df_design, dict_vars, dict_batches, bsplines, gam_formula] = dill.load(open('./your_bk_dill.pkl', 'rb'));
 ##############################
 
 def nh_learn_ref_model(in_data : Union[pd.DataFrame, str], 
@@ -90,7 +90,7 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
     model : A dictionary of estimated model parameters
 
         model_ref:  A dictionary with estimated values for the reference dataset
-            dict_cov: A dictionary of covariates
+            dict_vars: A dictionary of covariates
             dict_categories: A dictionary of categorical variables and their values
             dict_design: A dictionary of design matrix variables
             bsplines: Bspline model estimated for spline (non-linear) variables
@@ -120,17 +120,16 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
     df_in = read_data(in_data)
 
     logger.info('  Checking primary key ...')
-    if check_key(df_in, key_var) is None:
+    key_var = check_key(df_in, key_var)
+    if key_var is None:
         sys.exit(1)
 
-    logger.info('  Checking variables ...')
-    #df_in = read_data(in_data)
-
+    logger.info('  Make a dictionary of variables ...')
+    dict_vars = make_dict_cars(df_in, key_var, batch_var, num_vars, cat_vars, 
+                               spline_vars, ignore_vars, data_vars)
     
-    logger.info('  Parsing / checking input data ...')
-    out_tmp = parse_init_data(df_in, key_var, batch_var, num_vars, cat_vars, spline_vars, ignore_vars, data_vars)
     try:
-        df_data, df_cov, dict_cov, dict_categories = out_tmp
+        df_data, df_cov, dict_vars, dict_categories = out_tmp
     except:
         logger.info('Failed in parsing data: ')
 
@@ -146,11 +145,11 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
 
     ## Create design dataframe      
     logger.info('  Creating design matrix ...')
-    df_design, dict_design = make_design_dataframe(df_cov, dict_cov)    
+    df_design, dict_design = make_design_dataframe(df_cov, dict_vars)    
 
     ## Add spline terms to the design dataframe
     logger.info('  Adding spline terms to design matrix ...')
-    df_design, dict_design, bsplines, gam_formula = add_spline_vars(df_design, dict_design, df_cov, dict_cov)
+    df_design, dict_design, bsplines, gam_formula = add_spline_vars(df_design, dict_design, df_cov, dict_vars)
 
     ##################################################################
     ## COMBAT Step 1: Standardize dataset
@@ -198,7 +197,7 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
     df_B_hat = df_B_hat.loc[dict_design['non_batch_vars'], :]
 
     ## Create output for the ref model
-    mdl_ref = {'dict_cov' : dict_cov, 'dict_categories' : dict_categories, 
+    mdl_ref = {'dict_vars' : dict_vars, 'dict_categories' : dict_categories, 
                'dict_design' : dict_design, 'bsplines' : bsplines, 'df_B_hat' : df_B_hat,
                'df_pooled_stats' : df_pooled_stats,
                'is_emp_bayes' : is_emp_bayes}

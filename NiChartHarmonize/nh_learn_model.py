@@ -23,7 +23,7 @@ FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 #pwd='/home/guray/Github/neuroHarmonizeV2/neuroHarmonizeV2'
 #sys.path.append(pwd)
 
-from .nh_utils import read_data, check_key, make_dict_batches, make_design_dataframe, add_spline_vars, calc_B_hat, standardize_across_features, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_csv
+from .nh_utils import read_data, check_key, make_dict_vars, add_spline_bounds, make_dict_cat, get_data_and_covars, make_dict_batches, make_design_dataframe, add_spline_vars, calc_B_hat, standardize_across_features, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_csv
 
 ##############################
 #### FIXME SAVE VARS FOR DEBUG
@@ -91,7 +91,7 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
 
         model_ref:  A dictionary with estimated values for the reference dataset
             dict_vars: A dictionary of covariates
-            dict_categories: A dictionary of categorical variables and their values
+            dict_cat: A dictionary of categorical variables and their values
             dict_design: A dictionary of design matrix variables
             bsplines: Bspline model estimated for spline (non-linear) variables
             df_B_hat: Estimated beta parameters for covariates
@@ -114,7 +114,7 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
     logger.info('Running: nh_learn_ref_model()\n')
     logger.info('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n')
     
-    logger.info('------------------------------ Read Data -----------------------------')
+    logger.info('----------------------- Create Data and Dictionaries -----------------------------')
 
     logger.info('  Reading input data ...')
     df_in = read_data(in_data)
@@ -124,27 +124,29 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
     if key_var is None:
         sys.exit(1)
 
-    logger.info('  Make a dictionary of variables ...')
-    dict_vars = make_dict_cars(df_in, key_var, batch_var, num_vars, cat_vars, 
+    logger.info('  Creating a dictionary of variables ...')
+    dict_vars = make_dict_vars(df_in, key_var, batch_var, num_vars, cat_vars, 
                                spline_vars, ignore_vars, data_vars)
     
-    try:
-        df_data, df_cov, dict_vars, dict_categories = out_tmp
-    except:
-        logger.info('Failed in parsing data: ')
-
-    #logger.info(df_data.head(5))
-    #logger.info(df_cov.head(5))
-    #input()
-
-    logger.info('------------------------------ Prep Data -----------------------------')
+    logger.info('  Adding spline bounds ...')
+    dict_vars = add_spline_bounds(df_in, spline_vars, dict_vars) 
     
+    logger.info('  Splitting dataframe into covars and data ...')
+    res_tmp = get_data_and_covars(df_in, dict_vars)
+    if res_tmp is None:
+        sys.exit(1)
+    else:
+        df_cov, df_data = res_tmp
+
+    logger.info('  Creating a dictionary of categorical variables ...')
+    dict_cat = make_dict_cat(df_in, cat_vars) 
+
     ## Create dictionary with batch info
-    logger.info('  Creating batch info dict ...')
+    logger.info('  Creating a dictionary of batch info ...')
     dict_batches = make_dict_batches(df_cov, batch_var)
 
     ## Create design dataframe      
-    logger.info('  Creating design matrix ...')
+    logger.info('  Creating the design matrix ...')
     df_design, dict_design = make_design_dataframe(df_cov, dict_vars)    
 
     ## Add spline terms to the design dataframe
@@ -197,7 +199,7 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
     df_B_hat = df_B_hat.loc[dict_design['non_batch_vars'], :]
 
     ## Create output for the ref model
-    mdl_ref = {'dict_vars' : dict_vars, 'dict_categories' : dict_categories, 
+    mdl_ref = {'dict_vars' : dict_vars, 'dict_cat' : dict_cat, 
                'dict_design' : dict_design, 'bsplines' : bsplines, 'df_B_hat' : df_B_hat,
                'df_pooled_stats' : df_pooled_stats,
                'is_emp_bayes' : is_emp_bayes}

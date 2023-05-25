@@ -288,6 +288,7 @@ def save_csv(out_df, out_file_name):
 
 #####################################################################################
 ## Functions specific to LearnRefModel
+
 def make_dict_vars(df_in, key_var, batch_var, num_vars,
                    cat_vars, spline_vars, ignore_vars, data_vars):
     """ 
@@ -296,20 +297,22 @@ def make_dict_vars(df_in, key_var, batch_var, num_vars,
 
     ## Get variable lists
     all_columns = df_in.columns.tolist()
-    cov_columns = num_vars + cat_vars + spline_vars
+    cov_columns = [key_var, batch_var] + num_vars + cat_vars + spline_vars
     non_data_columns = [key_var, batch_var] + cov_columns + ignore_vars
     if len(data_vars) == 0:
         data_vars = [x for x in all_columns if x not in non_data_columns]
-
+    #data_columns = [key_var] + data_vars
+    data_columns = data_vars
+    
     ## Create dictionary of covars    
-    dict_vars = {'covars_all' : cov_columns, 
+    dict_vars = {'cov_columns' : cov_columns, 
+                 'data_columns' : data_columns,
+                 'key_var' : batch_var,
                  'batch_var' : batch_var,
                  'num_vars' : num_vars,
                  'cat_vars' : cat_vars,
                  'spline_vars' : spline_vars,
-                 'spline_bounds_min' : spline_bounds_min,
-                 'spline_bounds_max' : spline_bounds_max,
-                 'ignore_vars': ignore_vars
+                 'ignore_vars': ignore_vars,
                  'data_vars': data_vars
                  }
     
@@ -329,41 +332,45 @@ def make_dict_cat(df_in, cat_vars):
     return dict_cat
 
 
-def get_spline_bounds(df_in, spline_vars):
+def add_spline_bounds(df_in, spline_vars, dict_vars):
     """ 
     Calculate bounds for spline columns
     """
-    ## Add spline bounds (min and max of each spline var)
+    dict_out = dict_vars.copy()
+    
+    ## Calculate spline bounds (min and max of each spline var)
     spline_bounds_min = []
     spline_bounds_max = []
     for tmp_var in spline_vars:
-        spline_bounds_min.append(df_cov[tmp_var].min())
-        spline_bounds_max.append(df_cov[tmp_var].max())
-
+        spline_bounds_min.append(df_in[tmp_var].min())
+        spline_bounds_max.append(df_in[tmp_var].max())
+        
+    ## Add spline bounds to dictionary
+    dict_out['spline_bounds_min'] = spline_bounds_min
+    dict_out['spline_bounds_max'] = spline_bounds_max
     
-    ## Split input dataframe into covars and data
-    try:
-        df_cov = df_in[[key_var, batch_var] + cov_columns]
-    except:
-        msg = "Could not extract covariate columns from input data: " + cov_columns
-        return msg
+    ## Return dictionary
+    return dict_out
 
-    if len(data_vars) != 0:
-        try:
-            df_data = df_in[data_vars]            
-        except:
-            msg = "Could not extract data columns from input data: " + data_vars
-            return msg
-    else:
-        try:
-            df_data = df_in.drop(non_data_columns, axis = 1, errors='ignore')
-        except:
-            msg = "Could not extract data columns by dropping: " + non_data_columns
-            return msg
+def get_data_and_covars(df_in, dict_vars):
+    
+    ## Extract covars and data dataframes
+    try:
+        df_cov = df_in[dict_vars['cov_columns']]
+    except:
+        logger.error("Could not extract covariate columns from input data: " + cov_columns)
+        return None
+
+    try:
+        df_data = df_in[dict_vars['data_columns']]
+    except:
+        logger.error("Could not extract data columns from input data: " + data_columns)
+        return None
 
     ## Replace special characters in batch values
     ## FIXME Special characters fail in GAM formula
     ##   Update this using patsy quoting in next version
+    batch_var = dict_vars['batch_var']
     df_cov.loc[:, batch_var] = df_cov[batch_var].str.replace('-', '_').str.replace(' ', '_')
     df_cov.loc[:, batch_var] = df_cov[batch_var].str.replace('.', '_').str.replace('/', '_')
     
@@ -371,6 +378,7 @@ def get_spline_bounds(df_in, spline_vars):
     
     ## FIXME Remove null values in covar dataframe (TODO)
     
+    return df_cov, df_data
 
 
 

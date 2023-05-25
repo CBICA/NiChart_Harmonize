@@ -33,10 +33,6 @@ def make_dict_batches(df_cov, batch_var):
         Create a dictionary with meta data about batches  
     '''
     
-    logger.info(df_cov.head())
-    logger.info(batch_var)
-    input()
-    
     df_tmp = pd.get_dummies(df_cov[batch_var], prefix = batch_var)
     design_batch_indices = {}
     for bname in df_tmp.columns:
@@ -281,13 +277,7 @@ def parse_init_data(in_data : Union[pd.DataFrame, str], key_var, batch_var, num_
     cov_columns = num_vars + cat_vars + spline_vars
     non_data_columns = [key_var, batch_var] + cov_columns + ignore_vars
     
-    ## Split input dataframe into key, covars and data
-    try:
-        df_key = df_in[[key_var]]
-    except:
-        msg = "Could not extract key column from input data: " + key_var
-        return msg
-    
+    ## Split input dataframe into covars and data
     try:
         df_cov = df_in[[key_var, batch_var] + cov_columns]
     except:
@@ -336,7 +326,7 @@ def parse_init_data(in_data : Union[pd.DataFrame, str], key_var, batch_var, num_
         cat_vals = df_cov[tmp_var].unique().tolist()
         dict_cat[tmp_var] = cat_vals 
 
-    return df_key, df_data, df_cov, dict_cov, dict_cat
+    return df_data, df_cov, dict_cov, dict_cat
 
 
 def make_design_dataframe(df_cov, dict_cov):

@@ -120,11 +120,10 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
     logger.info('  Parsing / checking input data ...')
     out_tmp = parse_init_data(in_data, key_var, batch_var, num_vars, cat_vars, spline_vars, ignore_vars, data_vars)
     try:
-        df_key, df_data, df_cov, dict_cov, dict_categories = out_tmp
+        df_data, df_cov, dict_cov, dict_categories = out_tmp
     except:
         logger.info('Failed in parsing data: ')
 
-    #logger.info(df_key.head(5))
     #logger.info(df_data.head(5))
     #logger.info(df_cov.head(5))
     #input()
@@ -226,7 +225,7 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
 
     ## Create out dataframe
     param_out_suff = '_HARM'
-    df_out = pd.concat([df_key, df_cov, df_h_data.add_suffix(param_out_suff)], axis=1)
+    df_out = pd.concat([df_cov, df_h_data.add_suffix(param_out_suff)], axis=1)
     
     if out_model is not None:
         logger.info('  Saving output model to:\n    ' + out_model)

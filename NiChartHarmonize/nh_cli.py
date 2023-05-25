@@ -53,7 +53,7 @@ def main():
                         type=str,
                         help=help, 
                         default=None, 
-                        required=False)
+                        required=True)
 
     # Numeric variables
     help = "Numeric covariates that will be modeled using a linear model"

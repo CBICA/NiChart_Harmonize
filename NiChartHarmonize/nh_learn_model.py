@@ -35,14 +35,14 @@ from .nh_utils import parse_init_data, make_dict_batches, make_design_dataframe,
 ##############################
 
 def nh_learn_ref_model(in_data : Union[pd.DataFrame, str], 
-                       key_var, 
-                       batch_var, 
+                       key_var = None, 
+                       batch_var = None, 
                        num_vars = [], 
                        cat_vars = [], 
                        spline_vars = [], 
                        ignore_vars = [],
                        data_vars = [],
-                       is_emp_bayes=True, 
+                       is_emp_bayes = True, 
                        out_model : str = None,
                        out_csv : str = None,
                        ) -> Tuple[dict, pd.DataFrame]:
@@ -118,22 +118,30 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
 
     ## Parse input data
     logger.info('  Parsing / checking input data ...')
-    df_key, df_data, in_data, dict_cov, dict_categories = parse_init_data(in_data, batch_var,
-                                                                         cat_vars, spline_vars, ignore_vars)
+    out_tmp = parse_init_data(in_data, key_var, batch_var, num_vars, cat_vars, spline_vars, ignore_vars, data_vars)
+    try:
+        df_key, df_data, df_cov, dict_cov, dict_categories = out_tmp
+    except:
+        logger.info('Failed in parsing data: ')
+
+    #logger.info(df_key.head(5))
+    #logger.info(df_data.head(5))
+    #logger.info(df_cov.head(5))
+    #input()
 
     logger.info('------------------------------ Prep Data -----------------------------')
     
     ## Create dictionary with batch info
     logger.info('  Creating batch info dict ...')
-    dict_batches = make_dict_batches(in_data, batch_var)
+    dict_batches = make_dict_batches(df_cov, batch_var)
 
     ## Create design dataframe      
     logger.info('  Creating design matrix ...')
-    df_design, dict_design = make_design_dataframe(in_data, dict_cov)    
+    df_design, dict_design = make_design_dataframe(df_cov, dict_cov)    
 
     ## Add spline terms to the design dataframe
     logger.info('  Adding spline terms to design matrix ...')
-    df_design, dict_design, bsplines, gam_formula = add_spline_vars(df_design, dict_design, in_data, dict_cov)
+    df_design, dict_design, bsplines, gam_formula = add_spline_vars(df_design, dict_design, df_cov, dict_cov)
 
     ##################################################################
     ## COMBAT Step 1: Standardize dataset
@@ -218,7 +226,7 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
 
     ## Create out dataframe
     param_out_suff = '_HARM'
-    df_out = pd.concat([df_key, in_data, df_h_data.add_suffix(param_out_suff)], axis=1)
+    df_out = pd.concat([df_key, df_cov, df_h_data.add_suffix(param_out_suff)], axis=1)
     
     if out_model is not None:
         logger.info('  Saving output model to:\n    ' + out_model)

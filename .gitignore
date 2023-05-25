@@ -52,7 +52,7 @@ docs/build
 
 # test outputs or tmp
 examples/output
-tmp
+tmp*
 inputs
 outputs
 test*

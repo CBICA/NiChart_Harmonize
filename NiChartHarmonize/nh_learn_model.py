@@ -1,4 +1,5 @@
 import os
+import sys
 import pickle
 import numpy as np
 import pandas as pd
@@ -22,8 +23,7 @@ FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 #pwd='/home/guray/Github/neuroHarmonizeV2/neuroHarmonizeV2'
 #sys.path.append(pwd)
 
-from .nh_utils import parse_init_data, make_dict_batches, make_design_dataframe, add_spline_vars, calc_B_hat, standardize_across_features, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_csv
-
+from .nh_utils import read_data, check_key, make_dict_batches, make_design_dataframe, add_spline_vars, calc_B_hat, standardize_across_features, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_csv
 
 ##############################
 #### FIXME SAVE VARS FOR DEBUG
@@ -116,9 +116,19 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
     
     logger.info('------------------------------ Read Data -----------------------------')
 
-    ## Parse input data
+    logger.info('  Reading input data ...')
+    df_in = read_data(in_data)
+
+    logger.info('  Checking primary key ...')
+    if check_key(df_in, key_var) is None:
+        sys.exit(1)
+
+    logger.info('  Checking variables ...')
+    #df_in = read_data(in_data)
+
+    
     logger.info('  Parsing / checking input data ...')
-    out_tmp = parse_init_data(in_data, key_var, batch_var, num_vars, cat_vars, spline_vars, ignore_vars, data_vars)
+    out_tmp = parse_init_data(df_in, key_var, batch_var, num_vars, cat_vars, spline_vars, ignore_vars, data_vars)
     try:
         df_data, df_cov, dict_cov, dict_categories = out_tmp
     except:

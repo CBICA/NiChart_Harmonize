@@ -28,6 +28,54 @@ def save_to_pickle(fname, obj):
 #####################################################################################
 ## Functions common to nh_learn_model and nh_apply_model
 
+def read_data(in_data : Union[pd.DataFrame, str]):
+    """ 
+    Read initial data
+    """
+    
+    ## Verify data and read to dataframe
+    if isinstance(in_data, pd.DataFrame):
+        df_in = in_data.copy()
+    else:
+        if os.path.exists(in_data) == False:
+            logger.warning("File not found: " + in_data)
+            return None
+        else:
+            try:
+                df_in = pd.read_csv(in_data)
+            except:
+                logger.warning("Could not read file: " + in_data)
+                return None
+
+    ## Reset index for data
+    df_in = df_in.reset_index(drop = True)
+    
+    return df_in
+
+def check_key(df_in, key_var):
+    '''
+    Check the primary key column
+    '''
+    
+    ## Check if key column exists in data
+    if key_var is not None: 
+        if key_var not in df_in.columns:
+            logger.error("Primary key not in data columns: " + key_var)
+            return None
+
+    ## If key is not entered as an input, first column is considered as key
+    if key_var is None:
+        key_var = df_in.columns.tolist()[0]
+        logger.info("Primary key is set to: " + str(key_var))
+    
+    ## Check that the key column has unique values
+    if df_in[key_var].unique().shape[0] != df_in.shape[0]:
+        logger.error("Values for primary key are not unique: " + key_var)
+        return None
+
+    ## Return key var
+    return key_var
+
 def make_dict_batches(df_cov, batch_var):
     '''
         Create a dictionary with meta data about batches  
@@ -240,38 +288,12 @@ def save_csv(out_df, out_file_name):
 
 #####################################################################################
 ## Functions specific to LearnRefModel
-def parse_init_data(in_data : Union[pd.DataFrame, str], key_var, batch_var, num_vars,
+def parse_init_data(df_in, key_var, batch_var, num_vars,
                     cat_vars, spline_vars, ignore_vars, data_vars):
     """ 
-    Read initial data, verify it, and extract meta data about variables
+    Check vars
     """
-    
-    ## Verify data
-    if isinstance(in_data, pd.DataFrame):
-        df_in = in_data.copy()
-    else:
-        if os.path.exists(in_data) == False:
-            msg = "File not found: " + in_data
-            return msg
-        else:
-            try:
-                df_in = pd.read_csv(in_data)
-            except:
-                msg = "Could not read file: " + in_data
-                return msg
 
-    ## Reset index for data
-    df_in = df_in.reset_index(drop = True)
-
-    ## Get list of all colums
-    list_columns = df_in.columns.tolist()
-
-    ## Set and check the primary key column
-    if key_var is None:
-        key_var = list_columns[0]       ## If key is not entered as an input, first column is considered as key
-    if df_in[key_var].unique().shape[0] != df_in.shape[0]:
-        msg = "Primary key in data is not unique, aborting: " + key_var
-        return msg
 
     ## Get list of covariate colums and all non-data columns
     cov_columns = num_vars + cat_vars + spline_vars
@@ -300,8 +322,8 @@ def parse_init_data(in_data : Union[pd.DataFrame, str], key_var, batch_var, num_
     ## Replace special characters in batch values
     ## FIXME Special characters fail in GAM formula
     ##   Update this using patsy quoting in next version
-    df_cov[batch_var] = df_cov[batch_var].str.replace('-', '_').str.replace(' ', '_')
-    df_cov[batch_var] = df_cov[batch_var].str.replace('.', '_').str.replace('/', '_')
+    df_cov.loc[:, batch_var] = df_cov[batch_var].str.replace('-', '_').str.replace(' ', '_')
+    df_cov.loc[:, batch_var] = df_cov[batch_var].str.replace('.', '_').str.replace('/', '_')
     
     ## FIXME Remove null values in data dataframe (TODO)
     
@@ -569,50 +591,31 @@ def standardize_across_features(df_data, df_design, df_B_hat, dict_design, dict_
 #####################################################################################
 ## Functions specific to HarmonizeToRef
 
-def parse_init_data_and_model(data : Union[pd.DataFrame, str], 
-                              covars : Union[pd.DataFrame, str], 
-                              mdl):
+def parse_init_data_and_model(in_data : Union[pd.DataFrame, str], mdl):
     '''
         Verify that init data matches the model
         Extract dictionaries for variables and batches
     '''
     
-    ## Set out variables
-    df_data = None
-    df_cov = None
-    dict_cov = None
-    dict_cat = None
-    
     ## Verify data
-    if isinstance(data, pd.DataFrame):
-        df_data = data.copy()
+    if isinstance(in_data, pd.DataFrame):
+        df_in = in_data.copy()
     else:
-        if os.path.exists(data):
-            df_data = pd.read_csv(data)
+        if os.path.exists(in_data) == False:
+            msg = "File not found: " + in_data
+            return msg
         else:
-            return df_data, df_cov, dict_cov, dict_cat
+            try:
+                df_in = pd.read_csv(in_data)
+            except:
+                msg = "Could not read file: " + in_data
+                return msg
 
-    ## Verify covars
-    if isinstance(covars, pd.DataFrame):
-        df_cov = covars.copy()
-    else:
-        if os.path.exists(covars):
-            df_cov = pd.read_csv(covars)
-        else:
-            return df_data, df_cov, dict_cov, dict_cat
+    ## Reset index for data
+    df_in = df_in.reset_index(drop = True)
 
-    ## Reset index for data and covar dataframes
-    df_data = df_data.reset_index(drop = True)
-    df_cov = df_cov.reset_index(drop = True)
-
-    ## Check key column in data and covars
-    df_key = None
-    key_var = df_data.columns.tolist()[0]
-    if df_cov.columns.tolist()[0] == key_var:       ## First column is the key
-        df_key = df_data[df_data.columns[0]]
-        df_data = df_data[df_data.columns[1:]]
-        df_cov = df_cov[df_cov.columns[1:]]
-        logger.info('Common key column detected in data and covars: ' + key_var)
+    ## Get list of all colums
+    list_columns = df_in.columns.tolist()
     
     ## Read covars from the model
     dict_cov = mdl['dict_cov']
@@ -623,16 +626,27 @@ def parse_init_data_and_model(data : Union[pd.DataFrame, str],
     ## Read categories from the model
     dict_cat = mdl['dict_cat']
 
-    ## Verify that input columns exist
-    vars_combined = [batch_var] + dict_cov['covars_all']
 
-    for tmp_var in vars_combined:
-        if tmp_var not in df_cov.columns:
-            raise ValueError('Variable not found in covariates dataframe: ' + tmp_var)
+    ## Split input dataframe into covars and data
+    try:
+        df_cov = df_in[[key_var, batch_var] + cov_columns]
+    except:
+        msg = "Could not extract covariate columns from input data: " + cov_columns
+        return msg
 
-    ## Verify that data and covar have the same number of samples
-    if df_data.shape[0] != df_cov.shape[0]:
-        raise ValueError('Data and covar files must have the same number of rows')
+    if len(data_vars) != 0:
+        try:
+            df_data = df_in[data_vars]            
+        except:
+            msg = "Could not extract data columns from input data: " + data_vars
+            return msg
+    else:
+        try:
+            df_data = df_in.drop(non_data_columns, axis = 1, errors='ignore')
+        except:
+            msg = "Could not extract data columns by dropping: " + non_data_columns
+            return msg
+
 
     ## Replace special characters in batch values
     ## FIXME Special characters fail in GAM formula

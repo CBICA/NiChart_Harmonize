@@ -34,8 +34,7 @@ from .nh_utils import parse_init_data_and_model, make_dict_batches, make_design_
 
 
 def nh_harmonize_to_ref(model : Union[dict, str],
-                        data : Union[pd.DataFrame, str],
-                        covars : Union[pd.DataFrame, str],
+                        in_data : Union[pd.DataFrame, str],
                         ignore_saved_batch_params = False,
                         out_model : str = None,
                         out_csv : str = None
@@ -96,7 +95,7 @@ def nh_harmonize_to_ref(model : Union[dict, str],
     ## Parse and check data
     logger.info('  Parsing / checking input data ...')    
     
-    df_key, df_data, df_cov, dict_cov, dict_categories = parse_init_data_and_model(data, covars, mdl_ref)
+    df_key, df_data, df_cov, dict_cov, dict_categories = parse_init_data_and_model(in_data, mdl_ref)
 
     ##################################################################
     ## Harmonize each batch individually

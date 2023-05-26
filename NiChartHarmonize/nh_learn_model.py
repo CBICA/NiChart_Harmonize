@@ -23,7 +23,7 @@ FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 #pwd='/home/guray/Github/neuroHarmonizeV2/neuroHarmonizeV2'
 #sys.path.append(pwd)
 
-from .nh_utils import read_data, check_key, make_dict_vars, add_spline_bounds, make_dict_cat, get_data_and_covars, make_dict_batches, make_design_dataframe, add_spline_vars, calc_B_hat, standardize_across_features, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_csv
+from .nh_utils import read_data, check_key, make_dict_vars, add_spline_bounds, make_dict_cat, get_data_and_covars, make_dict_batches, make_design_dataframe, add_spline_vars, calc_B_hat, standardize_across_features, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_data
 
 ##############################
 #### FIXME SAVE VARS FOR DEBUG
@@ -118,6 +118,8 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
 
     logger.info('  Reading input data ...')
     df_in = read_data(in_data)
+    if df_in is None:
+        sys.exit(1)
 
     logger.info('  Checking primary key ...')
     key_var = check_key(df_in, key_var)
@@ -244,7 +246,7 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
 
     if out_data_file is not None:
         logger.info('  Saving output data to:\n    ' + out_data_file)
-        save_csv(df_out, out_data_file)
+        save_data(df_out, out_data_file)
 
     logger.info('  Process completed \n')    
     

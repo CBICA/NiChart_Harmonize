@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 import pickle
 import numpy as np
 import pandas as pd
@@ -23,21 +24,21 @@ logger.setLevel(logging.INFO)    ## FIXME Comments will be removed in release ve
 #pwd='/home/guray/Github/neuroHarmonizeV2/neuroHarmonizeV2'
 #sys.path.append(pwd)
 
-from .nh_utils import parse_init_data_and_model, make_dict_batches, make_design_dataframe_using_model, update_spline_vars_using_model, standardize_across_features_using_model, update_model_new_batch, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_csv
+from .nh_utils import read_data, read_model, check_key, filter_data, get_data_and_covars, make_dict_vars, make_dict_batches, make_design_dataframe_using_model, update_spline_vars_using_model, standardize_across_features_using_model, update_model_new_batch, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_data
 
 #from nh_utils import fitLSModelAndFindPriorsV2
 
 ## FIXME Example to save curr vars
 #print('SAVING')
 #fname = 'sesstmp1.pkl'
-#save_to_pickle(fname, [df_cov, batch_col, model])
+#save_to_pickle(fname, [df_cov, batch_var, model])
 
 
-def nh_harmonize_to_ref(model : Union[dict, str],
-                        in_data : Union[pd.DataFrame, str],
+def nh_harmonize_to_ref(in_data : Union[pd.DataFrame, str],
+                        in_model : Union[dict, str],
                         ignore_saved_batch_params = False,
-                        out_model : str = None,
-                        out_csv : str = None
+                        out_model_file : str = None,
+                        out_data_file : str = None
                         ) -> Tuple[dict, pd.DataFrame]:
 
     '''
@@ -80,35 +81,49 @@ def nh_harmonize_to_ref(model : Union[dict, str],
 
     logger.info('  Reading input data ...')
     df_in = read_data(in_data)
-
-    logger.info('  Reading input model ...')
-    mdl_out = read_model(model)
-
-    logger.info('  Checking primary key ...')
-    key_var = check_key(df_in, key_var)
-    if key_var is None:
+    if df_in is None:
         sys.exit(1)
 
-    logger.info('  Reading model ...' + model)
+    logger.info('  Reading input model ...')
+    mdl_in = read_model(in_model)
+    if df_in is None:
+        sys.exit(1)
+    mdl_out = mdl_in
 
-        
-    mdl_batches = mdl_out['mdl_batches']
+    ## Read data fields from model
+    mdl_batches = mdl_in['mdl_batches']
     mdl_ref = mdl_out['mdl_ref']
-    batch_col = mdl_ref['dict_cov']['batch_col']
-    
-    ## Parse and check data
-    logger.info('  Parsing / checking input data ...')    
-    
-    df_key, df_data, df_cov, dict_cov, dict_categories = parse_init_data_and_model(in_data, mdl_ref)
+    dict_vars = mdl_ref['dict_vars']
+    dict_cat = mdl_ref['dict_cat']
+    batch_var = dict_vars['batch_var']
 
+    logger.info(dict_vars)
+    input()
+    
+    logger.info('  Checking primary key ...')
+    key_var = check_key(df_in, dict_vars['key_var'])
+    if key_var is None:
+        sys.exit(1)
+        
+
+    logger.info('  Filtering data ...')
+    df_in = filter_data(df_in, dict_cat)
+
+    logger.info('  Splitting dataframe into covars and data ...')
+    res_tmp = get_data_and_covars(df_in, dict_vars)
+    if res_tmp is None:
+        sys.exit(1)
+    else:
+        df_cov, df_data = res_tmp
+    
     ##################################################################
     ## Harmonize each batch individually
     
     ## Output df
     df_h_data = pd.DataFrame(index = df_data.index, columns = df_data.columns)
     
-    batch_col_vals = df_cov[batch_col].unique()
-    for curr_batch in batch_col_vals:
+    batch_var_vals = df_cov[batch_var].unique()
+    for curr_batch in batch_var_vals:
 
         logger.info('Harmonizing batch : ' + str(curr_batch))
         
@@ -116,7 +131,7 @@ def nh_harmonize_to_ref(model : Union[dict, str],
         ## Prepare data for the current batch
         
         ## Select batch
-        ind_curr = df_cov[df_cov[batch_col] == curr_batch].index.tolist() 
+        ind_curr = df_cov[df_cov[batch_var] == curr_batch].index.tolist() 
                 
         df_cov_curr = df_cov.loc[ind_curr, :].copy().reset_index(drop = True)
         df_data_curr = df_data.loc[ind_curr, :].copy().reset_index(drop = True)
@@ -125,11 +140,11 @@ def nh_harmonize_to_ref(model : Union[dict, str],
     
         ## Create dictionary with batch info
         logger.info('    Creating batches dictionary ...')
-        dict_batches = make_dict_batches(df_cov_curr, batch_col)
+        dict_batches = make_dict_batches(df_cov_curr, batch_var)
         
         ## Create design dataframe
         logger.info('    Creating design matrix ...')            
-        df_design, dict_design = make_design_dataframe_using_model(df_cov_curr, batch_col, mdl_ref)    
+        df_design, dict_design = make_design_dataframe_using_model(df_cov_curr, batch_var, mdl_ref)    
 
         ## Add spline terms to design dataframe
         logger.info('    Adding spline terms to design matrix ...')
@@ -182,13 +197,13 @@ def nh_harmonize_to_ref(model : Union[dict, str],
 
             ##   Step 2.A : Estimate parameters
             logger.info('    Estimating location and scale (L/S) parameters ...')            
-            dict_LS = fit_LS_model(df_s_data, df_design, dict_batches, mdl_ref['is_emp_bayes'])
+            dict_LS = fit_LS_model(df_s_data, df_design, dict_batches, mdl_ref['skip_emp_bayes'])
 
             ##   Step 2.B : Adjust parameters    
             logger.info('    Adjusting location and scale (L/S) parameters ...')
             df_gamma_star, df_delta_star = find_parametric_adjustments(df_s_data, dict_LS,
                                                                        dict_batches, 
-                                                                       mdl_ref['is_emp_bayes'])
+                                                                       mdl_ref['skip_emp_bayes'])
 
             ##################################################################
             ## COMBAT Step 3: Calculate harmonized data
@@ -223,17 +238,17 @@ def nh_harmonize_to_ref(model : Union[dict, str],
     
     ## Create out dataframe
     param_out_suff = '_HARM'    
-    df_out = pd.concat([df_key, df_cov, df_h_data.add_suffix(param_out_suff)], axis=1)
+    df_out = pd.concat([df_cov, df_h_data.add_suffix(param_out_suff)], axis=1)
 
     ###################################################################
     ## Return output
-    if out_model is not None:
-        logger.info('  Saving output model to:\n    ' + out_model)
-        save_model(mdl_out, out_model)
+    if out_model_file is not None:
+        logger.info('  Saving output model to:\n    ' + out_model_file)
+        save_model(mdl_out, out_model_file)
 
-    if out_csv is not None:
-        logger.info('  Saving output data to:\n    ' + out_csv)
-        save_csv(df_out, out_csv)
+    if out_data_file is not None:
+        logger.info('  Saving output data to:\n    ' + out_data_file)
+        save_csv(df_out, out_data_file)
 
     logger.info('  Process completed \n')    
 

@@ -32,7 +32,6 @@ def read_data(in_data : Union[pd.DataFrame, str]):
     """ 
     Read initial data
     """
-
     ## Verify data and read to dataframe
     if isinstance(in_data, pd.DataFrame):
         df_in = in_data.copy()
@@ -55,13 +54,12 @@ def read_data(in_data : Union[pd.DataFrame, str]):
 def read_model(model : Union[dict, str]):
     """ 
     Read initial data
-    """
-    
+    """    
     ## Read model file
     if isinstance(model, str):
         try:
             fmdl = open(model, 'rb')
-            mdl_out = pickle.load(fmdl)
+            out_model = pickle.load(fmdl)
             fmdl.close()
         except:
             logger.warning("Could not read model file: " + model)
@@ -71,14 +69,34 @@ def read_model(model : Union[dict, str]):
     
     return out_model
 
+def filter_data(df_in, dict_cat):
+    '''
+        Filter data
+    '''
+    ## Remove rows with categorical values not present in model data
+    num_sample_init = df_in.shape[0]
+    for tmp_var in dict_cat.keys():   ## For each cat var from the dict_vars that was saved in model
+        tmp_vals = dict_cat[tmp_var]         ##   Read values of the cat var
+        df_in = df_in[df_in[tmp_var].isin(tmp_vals)]  ##   Remove rows with values different than those in model
+    num_sample_new = df_in.shape[0]
+    num_diff = num_sample_init - num_sample_new
+    if num_diff != 0:
+        logger.info('WARNING: Samples with categorical values not in model data are discarded ' + 
+                    ', n removed = ' + str(num_diff))
+
+    return df_in
+
 def check_key(df_in, key_var):
     '''
     Check the primary key column
     '''
-    
     ## Check if key column exists in data
     if key_var is not None: 
         if key_var not in df_in.columns:
+            
+            logger.info(df_in.columns)
+            input()
+            
             logger.error("Primary key not in data columns: " + key_var)
             return None
 
@@ -95,11 +113,38 @@ def check_key(df_in, key_var):
     ## Return key var
     return key_var
 
+def make_dict_vars(df_in, key_var, batch_var, num_vars, cat_vars, spline_vars, ignore_vars, data_vars):
+    """ 
+    Make a dictionary of all variables
+    """
+    ## Get variable lists
+    all_columns = df_in.columns.tolist()
+    cov_columns = [key_var, batch_var] + num_vars + cat_vars + spline_vars
+    non_data_columns = [key_var, batch_var] + cov_columns + ignore_vars
+    if len(data_vars) == 0:
+        data_vars = [x for x in all_columns if x not in non_data_columns]
+    #data_columns = [key_var] + data_vars
+    data_columns = data_vars
+    
+    ## Create dictionary of covars    
+    dict_vars = {'cov_columns' : cov_columns, 
+                 'data_columns' : data_columns,
+                 'key_var' : key_var,
+                 'batch_var' : batch_var,
+                 'num_vars' : num_vars,
+                 'cat_vars' : cat_vars,
+                 'spline_vars' : spline_vars,
+                 'ignore_vars': ignore_vars,
+                 'data_vars': data_vars
+                 }
+    
+    ## Return dictionary
+    return dict_vars
+
 def make_dict_batches(df_cov, batch_var):
     '''
         Create a dictionary with meta data about batches  
-    '''
-    
+    '''    
     df_tmp = pd.get_dummies(df_cov[batch_var], prefix = batch_var)
     design_batch_indices = {}
     for bname in df_tmp.columns:
@@ -112,12 +157,118 @@ def make_dict_batches(df_cov, batch_var):
                     'design_batch_indices': design_batch_indices}
     return dict_batches
 
-def adjust_data_final(df_s_data, df_gamma_star, df_delta_star, df_stand_mean, 
-                      df_pooled_stats, dict_batches):
+def make_dict_cat(df_in, cat_vars):
+    ## Make a dictionary of categorical variables
+    
+    ## Find unique values for each categorical variable
+    dict_cat ={}
+    for tmp_var in cat_vars:
+        cat_vals = df_in[tmp_var].unique().tolist()
+        dict_cat[tmp_var] = cat_vals 
+
+    ## Return dictionary
+    return dict_cat
+
+def add_spline_bounds(df_in, spline_vars, dict_vars):
+    """ 
+    Calculate bounds for spline columns
+    """
+    dict_out = dict_vars.copy()
+    
+    ## Calculate spline bounds (min and max of each spline var)
+    spline_bounds_min = []
+    spline_bounds_max = []
+    for tmp_var in spline_vars:
+        spline_bounds_min.append(df_in[tmp_var].min())
+        spline_bounds_max.append(df_in[tmp_var].max())
+        
+    ## Add spline bounds to dictionary
+    dict_out['spline_bounds_min'] = spline_bounds_min
+    dict_out['spline_bounds_max'] = spline_bounds_max
+    
+    ## Return dictionary
+    return dict_out
+
+def get_data_and_covars(df_in, dict_vars):
+    '''
+    Split dataframe into data and covars
+    '''
+    ## Extract covars and data dataframes
+    try:
+        df_cov = df_in[dict_vars['cov_columns']]
+    except:
+        logger.error("Could not extract covariate columns from input data: " + cov_columns)
+        return None
+
+    try:
+        df_data = df_in[dict_vars['data_columns']]
+    except:
+        logger.error("Could not extract data columns from input data: " + data_columns)
+        return None
+
+    ## Replace special characters in batch values
+    ## FIXME Special characters fail in GAM formula
+    ##   Update this using patsy quoting in next version
+    batch_var = dict_vars['batch_var']
+    df_cov.loc[:, batch_var] = df_cov[batch_var].str.replace('-', '_').str.replace(' ', '_')
+    df_cov.loc[:, batch_var] = df_cov[batch_var].str.replace('.', '_').str.replace('/', '_')
+    
+    ## FIXME Remove null values in data dataframe (TODO)
+    
+    ## FIXME Remove null values in covar dataframe (TODO)
+    
+    return df_cov, df_data
+
+def make_design_dataframe(df_cov, dict_vars):
+    '''
+    Expand the covariates dataframe adding columns that will constitute the design matrix
+    New columns in the output dataframe are: 
+        - one-hot matrix of batch variables (full)
+        - one-hot matrix for each categorical var (removing the first column)
+        - column for each continuous_vars
+        - spline variables are skipped (added later in a separate function)
+    '''
+    ## Make output dataframe
+    df_design_out = df_cov.copy()
+    
+    ## Make output dict
+    dict_design = {}
+    
+    ## Keep columns that will be included in the final design matrix
+    design_vars = []
+
+    ## Add one-hot encoding of batch variable
+    df_tmp = pd.get_dummies(df_design_out[dict_vars['batch_var']], prefix = dict_vars['batch_var'], dtype = float)
+    design_batch_vars = df_tmp.columns.tolist()
+    df_design_out = pd.concat([df_design_out, df_tmp], axis = 1)
+    design_vars = design_vars + design_batch_vars
+
+    ## Add numeric variables
+    ##   Numeric variables do not need any manipulation; just add them to the list of design variables
+    num_vars = dict_vars['num_vars']
+    design_vars = design_vars + num_vars
+    dict_design['num_vars'] = num_vars
+
+    ## Add one-hot encoding for each categoric variable
+    cat_vars = []
+    for tmp_var in dict_vars['cat_vars']:
+        df_tmp = pd.get_dummies(df_design_out[tmp_var], prefix = tmp_var, drop_first = True, 
+                                dtype = float)
+        df_design_out = pd.concat([df_design_out, df_tmp], axis = 1)
+        cat_vars = cat_vars + df_tmp.columns.tolist()
+    design_vars = design_vars + cat_vars
+    dict_design['cat_vars'] = cat_vars
+    
+    ## Add dict item for non-batch columns
+    dict_design['non_batch_vars'] = num_vars + cat_vars
+
+    ## Return output vars
+    return df_design_out[design_vars], dict_design
+
+def adjust_data_final(df_s_data, df_gamma_star, df_delta_star, df_stand_mean, df_pooled_stats, dict_batches):
     '''
         Apply estimated harmonization parameters
     '''
-
     ## Create output df
     df_h_data = df_s_data.copy()
     
@@ -138,12 +289,10 @@ def adjust_data_final(df_s_data, df_gamma_star, df_delta_star, df_stand_mean,
 
     return df_h_data
 
-
 def fit_LS_model(df_s_data, df_design, dict_batches, skip_emp_bayes = False):
     """
         Dataframe implementation of neuroCombat function fit_LS_model_and_find_priors
     """
-    
     ## Get design matrix columns only for batch variables (batch columns)
     batch_vars = dict_batches['design_batch_vars']
     df_design_batch_only = df_design[batch_vars]
@@ -197,7 +346,9 @@ def postvar(sum2, n, a, b):
     return (0.5 * sum2 + b) / (n / 2.0 + a - 1.0)
 
 def it_sol(sdat, g_hat, d_hat, g_bar, t2, a, b, conv=0.0001):
-    
+    '''
+    Iterative solver
+    '''
     n = (1 - np.isnan(sdat)).sum(axis=1)
     g_old = g_hat.copy()
     d_old = d_hat.copy()
@@ -220,7 +371,6 @@ def find_parametric_adjustments(df_s_data, dict_LS, dict_batches, skip_emp_bayes
     '''
         Calculate adjusted gamma and delta values (gamma and delta star)
     '''
-
     ## Get data into numpy matrices
     s_data = np.array(df_s_data).T    
 
@@ -264,7 +414,6 @@ def save_model(out_model, out_file_name):
     """
     Save model as a pickle file
     """
-
     ## Set extension to .pkl.gz, if it's not
     out_file_name = out_file_name.rstrip('.pkl.gz') + '.pkl.gz'
 
@@ -283,11 +432,10 @@ def save_model(out_model, out_file_name):
     pickle.dump(out_model, out_file)
     out_file.close()
 
-def save_csv(out_df, out_file_name):
+def save_data(out_df, out_file_name):
     """
     Save dataframe as a csv file
     """
-
     ## Set extension to .csv, if it's not
     out_file_name = out_file_name.rstrip('.csv') + '.csv'
 
@@ -305,152 +453,10 @@ def save_csv(out_df, out_file_name):
     out_df.to_csv(out_file_name_full, index = False)
 
 
-#####################################################################################
-## Functions specific to LearnRefModel
-
-def make_dict_vars(df_in, key_var, batch_var, num_vars,
-                   cat_vars, spline_vars, ignore_vars, data_vars):
-    """ 
-    Make a dictionary of all variables
-    """
-
-    ## Get variable lists
-    all_columns = df_in.columns.tolist()
-    cov_columns = [key_var, batch_var] + num_vars + cat_vars + spline_vars
-    non_data_columns = [key_var, batch_var] + cov_columns + ignore_vars
-    if len(data_vars) == 0:
-        data_vars = [x for x in all_columns if x not in non_data_columns]
-    #data_columns = [key_var] + data_vars
-    data_columns = data_vars
-    
-    ## Create dictionary of covars    
-    dict_vars = {'cov_columns' : cov_columns, 
-                 'data_columns' : data_columns,
-                 'key_var' : batch_var,
-                 'batch_var' : batch_var,
-                 'num_vars' : num_vars,
-                 'cat_vars' : cat_vars,
-                 'spline_vars' : spline_vars,
-                 'ignore_vars': ignore_vars,
-                 'data_vars': data_vars
-                 }
-    
-    ## Return dictionary
-    return dict_vars
-
-def make_dict_cat(df_in, cat_vars):
-    ## Make a dictionary of categorical variables
-    
-    ## Find unique values for each categorical variable
-    dict_cat ={}
-    for tmp_var in cat_vars:
-        cat_vals = df_in[tmp_var].unique().tolist()
-        dict_cat[tmp_var] = cat_vals 
-
-    ## Return dictionary
-    return dict_cat
-
-
-def add_spline_bounds(df_in, spline_vars, dict_vars):
-    """ 
-    Calculate bounds for spline columns
-    """
-    dict_out = dict_vars.copy()
-    
-    ## Calculate spline bounds (min and max of each spline var)
-    spline_bounds_min = []
-    spline_bounds_max = []
-    for tmp_var in spline_vars:
-        spline_bounds_min.append(df_in[tmp_var].min())
-        spline_bounds_max.append(df_in[tmp_var].max())
-        
-    ## Add spline bounds to dictionary
-    dict_out['spline_bounds_min'] = spline_bounds_min
-    dict_out['spline_bounds_max'] = spline_bounds_max
-    
-    ## Return dictionary
-    return dict_out
-
-def get_data_and_covars(df_in, dict_vars):
-    
-    ## Extract covars and data dataframes
-    try:
-        df_cov = df_in[dict_vars['cov_columns']]
-    except:
-        logger.error("Could not extract covariate columns from input data: " + cov_columns)
-        return None
-
-    try:
-        df_data = df_in[dict_vars['data_columns']]
-    except:
-        logger.error("Could not extract data columns from input data: " + data_columns)
-        return None
-
-    ## Replace special characters in batch values
-    ## FIXME Special characters fail in GAM formula
-    ##   Update this using patsy quoting in next version
-    batch_var = dict_vars['batch_var']
-    df_cov.loc[:, batch_var] = df_cov[batch_var].str.replace('-', '_').str.replace(' ', '_')
-    df_cov.loc[:, batch_var] = df_cov[batch_var].str.replace('.', '_').str.replace('/', '_')
-    
-    ## FIXME Remove null values in data dataframe (TODO)
-    
-    ## FIXME Remove null values in covar dataframe (TODO)
-    
-    return df_cov, df_data
-
-def make_design_dataframe(df_cov, dict_vars):
-    """
-    Expand the covariates dataframe adding columns that will constitute the design matrix
-    New columns in the output dataframe are: 
-        - one-hot matrix of batch variables (full)
-        - one-hot matrix for each categorical var (removing the first column)
-        - column for each continuous_vars
-        - spline variables are skipped (added later in a separate function)
-    """
-    ## Make output dataframe
-    df_design_out = df_cov.copy()
-    
-    ## Make output dict
-    dict_design = {}
-    
-    ## Keep columns that will be included in the final design matrix
-    design_vars = []
-
-    ## Add one-hot encoding of batch variable
-    df_tmp = pd.get_dummies(df_design_out[dict_vars['batch_var']], prefix = dict_vars['batch_var'], dtype = float)
-    design_batch_vars = df_tmp.columns.tolist()
-    df_design_out = pd.concat([df_design_out, df_tmp], axis = 1)
-    design_vars = design_vars + design_batch_vars
-
-    ## Add numeric variables
-    ##   Numeric variables do not need any manipulation; just add them to the list of design variables
-    num_vars = dict_vars['num_vars']
-    design_vars = design_vars + num_vars
-    dict_design['num_vars'] = num_vars
-
-    ## Add one-hot encoding for each categoric variable
-    cat_vars = []
-    for tmp_var in dict_vars['cat_vars']:
-        df_tmp = pd.get_dummies(df_design_out[tmp_var], prefix = tmp_var, drop_first = True, 
-                                dtype = float)
-        df_design_out = pd.concat([df_design_out, df_tmp], axis = 1)
-        cat_vars = cat_vars + df_tmp.columns.tolist()
-    design_vars = design_vars + cat_vars
-    dict_design['cat_vars'] = cat_vars
-    
-    ## Add dict item for non-batch columns
-    dict_design['non_batch_vars'] = num_vars + cat_vars
-
-    ## Return output vars
-    return df_design_out[design_vars], dict_design
-
-def calc_spline_model(df_spline, spline_bounds_min = None, spline_bounds_max = None, param_spline_doff = 10, 
-                      param_spline_degree = 3):
+def calc_spline_model(df_spline, spline_bounds_min = None, spline_bounds_max = None, param_spline_doff = 10, param_spline_degree = 3):
     '''
     calculate spline model for the selected spline variables
     '''
-    
     doff = [param_spline_doff] * df_spline.shape[1] 
     degree = [param_spline_degree] * df_spline.shape[1] 
 
@@ -472,7 +478,6 @@ def add_spline_vars(df_design, dict_design, df_cov, dict_vars):
     Add columns for spline variables to design dataframe
         - spline basis columns for each spline var (based on Ray's implementation)
     """
-    
     ## Make output dataframe
     df_design_out = df_design.copy()
     
@@ -516,7 +521,6 @@ def calc_B_hat(df_data, df_design, dict_batches, bsplines = None, gam_formula = 
     '''
     Calculate the B hat values
     '''
-
     #save_to_pickle('/home/guray/sesstmp3.pkl', [df_data, df_design, dict_batches, bsplines, gam_formula])
 
     ## During estimation print a dot in every "param_dot_count" variables to show the progress
@@ -590,16 +594,14 @@ def calc_B_hat(df_data, df_design, dict_batches, bsplines = None, gam_formula = 
     ## Return B hat dataframe
     return df_B_hat
 
-
 def standardize_across_features(df_data, df_design, df_B_hat, dict_design, dict_batches):
-    """
+    '''
     The original neuroCombat function standardize_across_features plus
     necessary modifications.
     
     This function will return all estimated parameters in addition to the
     standardized data.
-    """
-
+    '''
     ## Get design columns for batches and non-batches    
     bcol = dict_batches['design_batch_vars']
     nbcol = dict_design['non_batch_vars']
@@ -639,28 +641,6 @@ def standardize_across_features(df_data, df_design, df_B_hat, dict_design, dict_
 #####################################################################################
 ## Functions specific to HarmonizeToRef
 
-def parse_init_data_and_model(in_data : Union[pd.DataFrame, str], mdl):
-    '''
-        Verify that init data matches the model
-        Extract dictionaries for variables and batches
-    '''
-    ## Remove rows with categorical values not present in model data
-    num_sample_init = df_cov.shape[0]
-    for tmp_var in dict_vars['cat_vars']:         ## For each cat var from the dict_vars that was saved in model
-        tmp_vals = dict_cat[tmp_var]         ##   Read values of the cat var
-        df_cov = df_cov[df_cov[tmp_var].isin(tmp_vals)]  ##   Remove rows with values different than those in model
-    
-    df_data = df_data.loc[df_cov.index]           ## Remove deleted rows from the data dataframe
-    if df_key is not None:
-        df_key = df_key.loc[df_cov.index]
-        
-    num_sample_new = df_cov.shape[0]
-    num_diff = num_sample_init - num_sample_new
-    if num_diff != 0:
-        logger.info('WARNING: Samples with categorical values not in model data are discarded ' + 
-                    ', n removed = ' + str(num_diff))
-
-    return df_key, df_data, df_cov, dict_vars, dict_cat
 
 def make_design_dataframe_using_model(df_cov, batch_var, mdl):
     '''
@@ -735,7 +715,6 @@ def update_spline_vars_using_model(df_design, df_cov, mdl):
         Add columns for spline variables to design dataframe using prev spline mdl
             - spline basis columns for each spline var (based on Ray's implementation)
     '''
-    
     ## Read mdl spline vars
     spline_vars = mdl['dict_vars']['spline_vars']
     bsplines = mdl['bsplines']
@@ -770,13 +749,11 @@ def update_spline_vars_using_model(df_design, df_cov, mdl):
     return df_design_out[design_vars], gam_formula
 
 def standardize_across_features_using_model(df_data, df_design, mdl):
-    """
+    '''
     The original neuroCombat function standardize_across_features plus
     necessary modifications.
-    
     This function will apply a pre-trained harmonization mdl to new data.
-    """
-    
+    '''
     ## Get mdl data
     mdl_nbcol = mdl['dict_design']['non_batch_vars']
     mdl_var_pooled = mdl['df_pooled_stats'].loc['var_pooled', :]

@@ -1,8 +1,21 @@
-from .nh_learn_model import nh_learn_ref_model
-from .nh_apply_model import nh_harmonize_to_ref
+import sys
 import argparse
 import pandas as pd
 from typing import Tuple, Union
+from .nh_learn_model import nh_learn_ref_model
+from .nh_apply_model import nh_harmonize_to_ref
+
+import logging
+format='%(levelname)-8s [%(filename)s : %(lineno)d - %(funcName)20s()] %(message)s'
+format='%(levelname)-8s %(message)s'
+logging.basicConfig(level=logging.DEBUG, format = '\n' + format, datefmt='%Y-%m-%d:%H:%M:%S')
+logger = logging.getLogger(__name__)
+
+##logger.setLevel(logging.DEBUG)      ## While debugging
+logger.setLevel(logging.INFO)    ## FIXME Debug comments will be removed in release version
+
+FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
+
 
 def main():
     prog="neuroharm"
@@ -53,7 +66,7 @@ def main():
                         type=str,
                         help=help, 
                         default=None, 
-                        required=True)
+                        required=False)
 
     # Numeric variables
     help = "Numeric covariates that will be modeled using a linear model"
@@ -147,9 +160,16 @@ def main():
     args = parser.parse_args()
     
     ### Print args
-    print(args)
-    print('aaa')
-    input()
+    #print(args)
+    #print('aaa')
+    #input()
+    
+    ## Verify required args conditional to selected action
+    if args.action == 'learn':
+        if args.batch_var == None:
+            logger.error('Missing required arg: -b/--batch_var')
+            sys.exit(1)
+    
     
     ## Call harmonize functions
     if args.action == 'learn':

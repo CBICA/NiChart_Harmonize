@@ -22,7 +22,7 @@ def main():
     # Data file
     help = "Data file to be used as input"
     parser.add_argument("-i",
-                        "--in_csv", 
+                        "--in_data_file", 
                         type=str,
                         help=help, 
                         default=None, 
@@ -31,14 +31,14 @@ def main():
     # Model file
     help = "The input model file (only for action: apply)"
     parser.add_argument("-m",
-                        "--in_model", 
+                        "--in_model_file",
                         type=str,
                         help=help, 
                         default=None, 
                         required=False)
 
     # Key variable
-    help = "Primary key of the data csv. If not provided, the first column is considered as the primary key"
+    help = "Primary key of the data file. If not provided, the first column is considered as the primary key"
     parser.add_argument("-k",
                         "--key_var", 
                         type=str,
@@ -100,9 +100,9 @@ def main():
                         required=False)
 
     # Data variables
-    help = "Variables that will be harmonized. If not provided, all variables in the input data csv after removing other listed covariates will be used as data variables"
-    parser.add_argument("-d",
-                        "--data_vars", 
+    help = "Variables that will be harmonized. If not provided, all variables in the input data file after removing other listed covariates will be used as data variables"
+    parser.add_argument("-t",
+                        "--target_vars",
                         type=str,
                         #action='append', 
                         nargs='+',
@@ -110,19 +110,27 @@ def main():
                         default=[], 
                         required=False)
 
+    # Flag to run / bypass empirical Bayes estimation
+    help = "Flag to skip empirical Bayes"
+    parser.add_argument("-e",
+                        "--skip_emp_bayes", 
+                        action = 'store_true',
+                        help=help, 
+                        required=False)
+
     # Output file
-    help = "The output model"
+    help = "File name to save the output model"
     parser.add_argument("-o",
-                        "--out_model", 
+                        "--out_model_file", 
                         type=str,
                         help=help, 
                         default=None, 
                         required=False)
 
     # Output data
-    help = "The output data"
+    help = "File name to save the output data"
     parser.add_argument("-u",
-                        "--out_csv", 
+                        "--out_data_file", 
                         type=str,
                         help=help, 
                         default=None, 
@@ -139,27 +147,27 @@ def main():
     args = parser.parse_args()
     
     ### Print args
-    #print(args)
-    #print('aaa')
-    #input()
+    print(args)
+    print('aaa')
+    input()
     
     ## Call harmonize functions
     if args.action == 'learn':
-        mdlOut, dfOut = nh_learn_ref_model(args.in_csv, 
+        mdlOut, dfOut = nh_learn_ref_model(args.in_data_file, 
                                            args.key_var, 
                                            args.batch_var,
                                            args.num_vars, 
                                            args.cat_vars, 
                                            args.spline_vars, 
                                            args.ignore_vars, 
-                                           args.data_vars,                                            
-                                           is_emp_bayes=True, 
-                                           out_model = args.out_model, 
-                                           out_csv = args.out_csv)
+                                           args.target_vars,                                            
+                                           args.skip_emp_bayes, 
+                                           args.out_model_file, 
+                                           args.out_data_file)
     if args.action == 'apply':
-        mdlOut, dfOut = nh_harmonize_to_ref(args.in_csv, 
-                                            args.in_model,
-                                            out_model = args.out_model,
-                                            out_csv = args.out_csv)
+        mdlOut, dfOut = nh_harmonize_to_ref(args.in_data_file, 
+                                            args.in_model_file,
+                                            args.out_model_file,
+                                            args.out_data_file)
     
     return;

@@ -76,17 +76,21 @@ def nh_harmonize_to_ref(model : Union[dict, str],
     logger.info('Running: nh_harmonize_to_ref()\n')    
     logger.info('%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n')
     
-    logger.info('------------------------------ Read Data -----------------------------')
+    logger.info('--------------------------- Read Data and Model ---------------------------')
+
+    logger.info('  Reading input data ...')
+    df_in = read_data(in_data)
+
+    logger.info('  Reading input model ...')
+    mdl_out = read_model(model)
+
+    logger.info('  Checking primary key ...')
+    key_var = check_key(df_in, key_var)
+    if key_var is None:
+        sys.exit(1)
 
     logger.info('  Reading model ...' + model)
 
-    ## Read model file
-    if isinstance(model, str):
-        fmdl = open(model, 'rb')
-        mdl_out = pickle.load(fmdl)
-        fmdl.close()
-    else:
-        mdl_out = copy.deepcopy(model)
         
     mdl_batches = mdl_out['mdl_batches']
     mdl_ref = mdl_out['mdl_ref']

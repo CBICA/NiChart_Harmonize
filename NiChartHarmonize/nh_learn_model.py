@@ -41,10 +41,10 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
                        cat_vars = [], 
                        spline_vars = [], 
                        ignore_vars = [],
-                       data_vars = [],
-                       is_emp_bayes = True, 
-                       out_model : str = None,
-                       out_csv : str = None,
+                       target_vars = [],
+                       skip_emp_bayes = False, 
+                       out_model_file : str = None,
+                       out_data_file : str = None,
                        ) -> Tuple[dict, pd.DataFrame]:
     '''
     Harmonize data and return "the harmonization model", a model that keeps estimated parameters
@@ -79,11 +79,11 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
     ignore_vars (OPTIONAL): List of variables to ignore (list of str, should match items in in_data columns,
         default = [])
         
-    data_vars (OPTIONAL): List of variables that will be corrected (list of str, should match items in in_data  
+    target_vars (OPTIONAL): List of variables that will be corrected (list of str, should match items in in_data  
         columns; if not set, all columns in in_data other than those listed as a covariate will be considered as data columns)
         
-    is_emp_bayes (OPTIONAL): Whether to use empirical Bayes estimates of site effects (bool, 
-        default True)
+    skip_emp_bayes (OPTIONAL): Whether to skip using empirical Bayes estimates of site effects (bool, 
+        default False)
 
     Returns
     -------
@@ -96,7 +96,7 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
             bsplines: Bspline model estimated for spline (non-linear) variables
             df_B_hat: Estimated beta parameters for covariates
             df_pooled_stats: Estimated pooled data parameters (grand-mean and pooled variance)
-            is_emp_bayes: Flag to indicate if empirical Bayes was used
+            skip_emp_bayes: Flag to indicate if empirical Bayes was used
                 
         model_batches: A dictionary with estimated values for data batches used for harmonization
             batch_values: List of batch values for which harmonization parameters are estimated
@@ -126,7 +126,7 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
 
     logger.info('  Creating a dictionary of variables ...')
     dict_vars = make_dict_vars(df_in, key_var, batch_var, num_vars, cat_vars, 
-                               spline_vars, ignore_vars, data_vars)
+                               spline_vars, ignore_vars, target_vars)
     
     logger.info('  Adding spline bounds ...')
     dict_vars = add_spline_bounds(df_in, spline_vars, dict_vars) 
@@ -172,11 +172,11 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
 
     ##   Step 2.A : Estimate parameters
     logger.info('  Estimating location and scale (L/S) parameters ...')
-    dict_LS = fit_LS_model(df_s_data, df_design, dict_batches, is_emp_bayes)
+    dict_LS = fit_LS_model(df_s_data, df_design, dict_batches, skip_emp_bayes)
 
     ##   Step 2.B : Adjust parameters    
     logger.info('  Adjusting location and scale (L/S) parameters ...')
-    df_gamma_star, df_delta_star = find_parametric_adjustments(df_s_data, dict_LS, dict_batches, is_emp_bayes)        
+    df_gamma_star, df_delta_star = find_parametric_adjustments(df_s_data, dict_LS, dict_batches, skip_emp_bayes)        
         
     ##################################################################
     ## COMBAT Step 3: Calculate harmonized data
@@ -202,7 +202,7 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
     mdl_ref = {'dict_vars' : dict_vars, 'dict_cat' : dict_cat, 
                'dict_design' : dict_design, 'bsplines' : bsplines, 'df_B_hat' : df_B_hat,
                'df_pooled_stats' : df_pooled_stats,
-               'is_emp_bayes' : is_emp_bayes}
+               'skip_emp_bayes' : skip_emp_bayes}
 
     ## Create output for the batches
     #dict_batches = {k:v for k, v in dict_batches.items() if k in ('batch_values', 'design_batch_vars', 
@@ -238,13 +238,13 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
     param_out_suff = '_HARM'
     df_out = pd.concat([df_cov, df_h_data.add_suffix(param_out_suff)], axis=1)
     
-    if out_model is not None:
-        logger.info('  Saving output model to:\n    ' + out_model)
-        save_model(mdl_out, out_model)
+    if out_model_file is not None:
+        logger.info('  Saving output model to:\n    ' + out_model_file)
+        save_model(mdl_out, out_model_file)
 
-    if out_csv is not None:
-        logger.info('  Saving output data to:\n    ' + out_csv)
-        save_csv(df_out, out_csv)
+    if out_data_file is not None:
+        logger.info('  Saving output data to:\n    ' + out_data_file)
+        save_csv(df_out, out_data_file)
 
     logger.info('  Process completed \n')    
     

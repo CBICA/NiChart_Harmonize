@@ -32,7 +32,7 @@ def read_data(in_data : Union[pd.DataFrame, str]):
     """ 
     Read initial data
     """
-    
+
     ## Verify data and read to dataframe
     if isinstance(in_data, pd.DataFrame):
         df_in = in_data.copy()
@@ -44,13 +44,32 @@ def read_data(in_data : Union[pd.DataFrame, str]):
             try:
                 df_in = pd.read_csv(in_data)
             except:
-                logger.warning("Could not read file: " + in_data)
+                logger.warning("Could not read data file: " + in_data)
                 return None
 
     ## Reset index for data
     df_in = df_in.reset_index(drop = True)
     
     return df_in
+
+def read_model(model : Union[dict, str]):
+    """ 
+    Read initial data
+    """
+    
+    ## Read model file
+    if isinstance(model, str):
+        try:
+            fmdl = open(model, 'rb')
+            mdl_out = pickle.load(fmdl)
+            fmdl.close()
+        except:
+            logger.warning("Could not read model file: " + model)
+            return None
+    else:
+        out_model = copy.deepcopy(model)
+    
+    return out_model
 
 def check_key(df_in, key_var):
     '''
@@ -120,7 +139,7 @@ def adjust_data_final(df_s_data, df_gamma_star, df_delta_star, df_stand_mean,
     return df_h_data
 
 
-def fit_LS_model(df_s_data, df_design, dict_batches, is_emp_bayes=True):
+def fit_LS_model(df_s_data, df_design, dict_batches, skip_emp_bayes = False):
     """
         Dataframe implementation of neuroCombat function fit_LS_model_and_find_priors
     """
@@ -146,7 +165,7 @@ def fit_LS_model(df_s_data, df_design, dict_batches, is_emp_bayes=True):
     t2 = None
     a_prior = None
     b_prior = None
-    if is_emp_bayes:
+    if skip_emp_bayes == False:
         df_gamma_bar = df_gamma_hat.mean(axis = 1) 
         df_t2 = df_gamma_hat.var(axis=1, ddof=1)
         df_a_prior = calc_aprior(df_delta_hat)
@@ -197,7 +216,7 @@ def it_sol(sdat, g_hat, d_hat, g_bar, t2, a, b, conv=0.0001):
     adjust = (g_new, d_new)
     return adjust 
 
-def find_parametric_adjustments(df_s_data, dict_LS, dict_batches, is_emp_bayes):
+def find_parametric_adjustments(df_s_data, dict_LS, dict_batches, skip_emp_bayes = False):
     '''
         Calculate adjusted gamma and delta values (gamma and delta star)
     '''
@@ -205,7 +224,7 @@ def find_parametric_adjustments(df_s_data, dict_LS, dict_batches, is_emp_bayes):
     ## Get data into numpy matrices
     s_data = np.array(df_s_data).T    
 
-    if is_emp_bayes == False:
+    if skip_emp_bayes:
         df_gamma_star = dict_LS['df_gamma_hat']
         delta_star = dict_LS['df_delta_hat']
     else:
@@ -379,70 +398,6 @@ def get_data_and_covars(df_in, dict_vars):
     ## FIXME Remove null values in covar dataframe (TODO)
     
     return df_cov, df_data
-
-
-
-def parse_init_data(df_in, key_var, batch_var, num_vars,
-                    cat_vars, spline_vars, ignore_vars, data_vars):
-    """ 
-    Check vars
-    """
-
-
-    ## Get list of covariate colums and all non-data columns
-    cov_columns = num_vars + cat_vars + spline_vars
-    non_data_columns = [key_var, batch_var] + cov_columns + ignore_vars
-    
-    ## Split input dataframe into covars and data
-    try:
-        df_cov = df_in[[key_var, batch_var] + cov_columns]
-    except:
-        msg = "Could not extract covariate columns from input data: " + cov_columns
-        return msg
-
-    if len(data_vars) != 0:
-        try:
-            df_data = df_in[data_vars]            
-        except:
-            msg = "Could not extract data columns from input data: " + data_vars
-            return msg
-    else:
-        try:
-            df_data = df_in.drop(non_data_columns, axis = 1, errors='ignore')
-        except:
-            msg = "Could not extract data columns by dropping: " + non_data_columns
-            return msg
-
-    ## Replace special characters in batch values
-    ## FIXME Special characters fail in GAM formula
-    ##   Update this using patsy quoting in next version
-    df_cov.loc[:, batch_var] = df_cov[batch_var].str.replace('-', '_').str.replace(' ', '_')
-    df_cov.loc[:, batch_var] = df_cov[batch_var].str.replace('.', '_').str.replace('/', '_')
-    
-    ## FIXME Remove null values in data dataframe (TODO)
-    
-    ## FIXME Remove null values in covar dataframe (TODO)
-    
-    ## Add spline bounds (min and max of each spline var)
-    spline_bounds_min = []
-    spline_bounds_max = []
-    for tmp_var in spline_vars:
-        spline_bounds_min.append(df_cov[tmp_var].min())
-        spline_bounds_max.append(df_cov[tmp_var].max())
-
-    ## Create dictionary of covars    
-    dict_vars = {'covars_all' : cov_columns, 'batch_var' : batch_var, 
-                'num_vars' : num_vars, 'cat_vars' : cat_vars, 
-                'spline_vars' : spline_vars, 'spline_bounds_min' : spline_bounds_min,
-                'spline_bounds_max' : spline_bounds_max, 'ignore_vars': ignore_vars}
-
-    ## Create dictionary of categorical covars
-    dict_cat ={}
-    for tmp_var in cat_vars:
-        cat_vals = df_cov[tmp_var].unique().tolist()
-        dict_cat[tmp_var] = cat_vals 
-
-    return df_data, df_cov, dict_vars, dict_cat
 
 def make_design_dataframe(df_cov, dict_vars):
     """
@@ -689,71 +644,6 @@ def parse_init_data_and_model(in_data : Union[pd.DataFrame, str], mdl):
         Verify that init data matches the model
         Extract dictionaries for variables and batches
     '''
-    
-    ## Verify data
-    if isinstance(in_data, pd.DataFrame):
-        df_in = in_data.copy()
-    else:
-        if os.path.exists(in_data) == False:
-            msg = "File not found: " + in_data
-            return msg
-        else:
-            try:
-                df_in = pd.read_csv(in_data)
-            except:
-                msg = "Could not read file: " + in_data
-                return msg
-
-    ## Reset index for data
-    df_in = df_in.reset_index(drop = True)
-
-    ## Get list of all colums
-    list_columns = df_in.columns.tolist()
-    
-    ## Read covars from the model
-    dict_vars = mdl['dict_vars']
-    
-    ## Read batch col from the model
-    batch_var = dict_vars['batch_var']
-
-    ## Read categories from the model
-    dict_cat = mdl['dict_cat']
-
-
-    ## Split input dataframe into covars and data
-    try:
-        df_cov = df_in[[key_var, batch_var] + cov_columns]
-    except:
-        msg = "Could not extract covariate columns from input data: " + cov_columns
-        return msg
-
-    if len(data_vars) != 0:
-        try:
-            df_data = df_in[data_vars]            
-        except:
-            msg = "Could not extract data columns from input data: " + data_vars
-            return msg
-    else:
-        try:
-            df_data = df_in.drop(non_data_columns, axis = 1, errors='ignore')
-        except:
-            msg = "Could not extract data columns by dropping: " + non_data_columns
-            return msg
-
-
-    ## Replace special characters in batch values
-    ## FIXME Special characters fail in GAM formula
-    ##   Update this using patsy quoting in next version
-    df_cov[batch_var] = df_cov[batch_var].str.replace('-', '_').str.replace(' ', '_')
-    df_cov[batch_var] = df_cov[batch_var].str.replace('.', '_').str.replace('/', '_')
-    
-    ## FIXME Remove null values in data dataframe (TODO)
-
-    ## FIXME Remove null values in covar dataframe (TODO)
-    
-    ## Remove columns that should be ignored
-    df_data = df_data.drop(dict_vars['ignore_vars'], axis=1, errors='ignore')
-
     ## Remove rows with categorical values not present in model data
     num_sample_init = df_cov.shape[0]
     for tmp_var in dict_vars['cat_vars']:         ## For each cat var from the dict_vars that was saved in model

@@ -248,7 +248,7 @@ def nh_harmonize_to_ref(in_data : Union[pd.DataFrame, str],
 
     if out_data_file is not None:
         logger.info('  Saving output data to:\n    ' + out_data_file)
-        save_csv(df_out, out_data_file)
+        save_data(df_out, out_data_file)
 
     logger.info('  Process completed \n')    
 

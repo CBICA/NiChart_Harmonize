@@ -187,7 +187,8 @@ def main():
     if args.action == 'apply':
         mdlOut, dfOut = nh_harmonize_to_ref(args.in_data_file, 
                                             args.in_model_file,
-                                            args.out_model_file,
-                                            args.out_data_file)
+                                            ignore_saved_batch_params = False,
+                                            out_model_file = args.out_model_file,
+                                            out_data_file = args.out_data_file)
     
     return;

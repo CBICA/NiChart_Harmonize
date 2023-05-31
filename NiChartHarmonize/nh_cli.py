@@ -173,22 +173,28 @@ def main():
     
     ## Call harmonize functions
     if args.action == 'learn':
-        mdlOut, dfOut = nh_learn_ref_model(args.in_data_file, 
-                                           args.key_var, 
-                                           args.batch_var,
-                                           args.num_vars, 
-                                           args.cat_vars, 
-                                           args.spline_vars, 
-                                           args.ignore_vars, 
-                                           args.target_vars,                                            
-                                           args.skip_emp_bayes, 
-                                           args.out_model_file, 
-                                           args.out_data_file)
+        try: 
+            mdlOut, dfOut = nh_learn_ref_model(args.in_data_file, 
+                                            args.key_var, 
+                                            args.batch_var,
+                                            args.num_vars, 
+                                            args.cat_vars, 
+                                            args.spline_vars, 
+                                            args.ignore_vars, 
+                                            args.target_vars,                                            
+                                            args.skip_emp_bayes, 
+                                            args.out_model_file, 
+                                            args.out_data_file)
+        except:
+            logger.error('Failed ...')
     if args.action == 'apply':
-        mdlOut, dfOut = nh_harmonize_to_ref(args.in_data_file, 
+        try:
+            mdlOut, dfOut = nh_harmonize_to_ref(args.in_data_file, 
                                             args.in_model_file,
                                             ignore_saved_batch_params = False,
                                             out_model_file = args.out_model_file,
                                             out_data_file = args.out_data_file)
+        except:
+            logger.error('Failed ...')
     
     return;

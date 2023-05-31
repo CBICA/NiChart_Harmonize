@@ -130,6 +130,10 @@ def nh_learn_ref_model(in_data : Union[pd.DataFrame, str],
     dict_vars = make_dict_vars(df_in, key_var, batch_var, num_vars, cat_vars, 
                                spline_vars, ignore_vars, target_vars)
     
+    #logger.info(dict_vars)
+    #input()
+    
+    
     logger.info('  Adding spline bounds ...')
     dict_vars = add_spline_bounds(df_in, spline_vars, dict_vars) 
     

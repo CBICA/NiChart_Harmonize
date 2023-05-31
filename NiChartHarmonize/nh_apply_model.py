@@ -24,7 +24,7 @@ logger.setLevel(logging.INFO)    ## FIXME Comments will be removed in release ve
 #pwd='/home/guray/Github/neuroHarmonizeV2/neuroHarmonizeV2'
 #sys.path.append(pwd)
 
-from .nh_utils import read_data, read_model, check_key, filter_data, get_data_and_covars, make_dict_vars, make_dict_batches, make_design_dataframe_using_model, update_spline_vars_using_model, standardize_across_features_using_model, update_model_new_batch, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_data
+from .nh_utils import read_data, read_model, verify_data_to_model, check_key, filter_data, get_data_and_covars, make_dict_vars, make_dict_batches, make_design_dataframe_using_model, update_spline_vars_using_model, standardize_across_features_using_model, update_model_new_batch, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_data
 
 #from nh_utils import fitLSModelAndFindPriorsV2
 
@@ -86,9 +86,18 @@ def nh_harmonize_to_ref(in_data : Union[pd.DataFrame, str],
 
     logger.info('  Reading input model ...')
     mdl_in = read_model(in_model)
-    if df_in is None:
+    if mdl_in is None:
         sys.exit(1)
     mdl_out = mdl_in
+
+    logger.info('  Verify data against model ...')
+    missing_vars = verify_data_to_model(mdl_in, df_in)
+    logger.info(len(missing_vars))
+    input()
+    
+    if len(missing_vars) > 0:
+        logger.info('Data does not match model, missing columns: ' + missing_vars)
+        return missing_vars
 
     ## Read data fields from model
     mdl_batches = mdl_in['mdl_batches']
@@ -97,8 +106,8 @@ def nh_harmonize_to_ref(in_data : Union[pd.DataFrame, str],
     dict_cat = mdl_ref['dict_cat']
     batch_var = dict_vars['batch_var']
 
-    logger.info(dict_vars)
-    input()
+    #logger.info(dict_vars)
+    #input()
     
     logger.info('  Checking primary key ...')
     key_var = check_key(df_in, dict_vars['key_var'])

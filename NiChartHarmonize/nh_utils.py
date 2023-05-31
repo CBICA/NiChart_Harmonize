@@ -69,6 +69,17 @@ def read_model(model : Union[dict, str]):
     
     return out_model
 
+def verify_data_to_model(mdl_in, df_in):
+    """ 
+    Verify that model variables are included in the data
+    """    
+    dict_vars = mdl_in['mdl_ref']['dict_vars']
+    mdl_vars = dict_vars['cov_columns'] + dict_vars['data_vars']
+    missing_vars = [x for x in mdl_vars if x not in df_in.columns]
+    
+    return missing_vars
+
+
 def filter_data(df_in, dict_cat):
     '''
         Filter data
@@ -119,16 +130,13 @@ def make_dict_vars(df_in, key_var, batch_var, num_vars, cat_vars, spline_vars, i
     """
     ## Get variable lists
     all_columns = df_in.columns.tolist()
-    cov_columns = [key_var, batch_var] + num_vars + cat_vars + spline_vars
-    non_data_columns = [key_var, batch_var] + cov_columns + ignore_vars
+    cov_columns = [batch_var] + num_vars + cat_vars + spline_vars
+    non_data_columns = [key_var] + cov_columns + ignore_vars
     if len(data_vars) == 0:
         data_vars = [x for x in all_columns if x not in non_data_columns]
-    #data_columns = [key_var] + data_vars
-    data_columns = data_vars
     
     ## Create dictionary of covars    
     dict_vars = {'cov_columns' : cov_columns, 
-                 'data_columns' : data_columns,
                  'key_var' : key_var,
                  'batch_var' : batch_var,
                  'num_vars' : num_vars,
@@ -195,15 +203,15 @@ def get_data_and_covars(df_in, dict_vars):
     '''
     ## Extract covars and data dataframes
     try:
-        df_cov = df_in[dict_vars['cov_columns']]
+        df_cov = df_in[ [dict_vars['key_var']] + dict_vars['cov_columns']]
     except:
         logger.error("Could not extract covariate columns from input data: " + cov_columns)
         return None
 
     try:
-        df_data = df_in[dict_vars['data_columns']]
+        df_data = df_in[dict_vars['data_vars']]
     except:
-        logger.error("Could not extract data columns from input data: " + data_columns)
+        logger.error("Could not extract data columns from input data: " + dict_vars['data_vars'])
         return None
 
     ## Replace special characters in batch values

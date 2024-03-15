@@ -1,5 +1,5 @@
 ================
-NiChartHarmonize
+NiChart_Harmonize
 ================
 
 Harmonization tools for multi-site neuroimaging analysis.

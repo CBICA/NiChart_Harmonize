@@ -422,21 +422,8 @@ def save_model(out_model, out_file_name):
     """
     Save model as a pickle file
     """
-    ## Set extension to .pkl.gz, if it's not
-    out_file_name = out_file_name.rstrip('.pkl.gz') + '.pkl.gz'
-
-    ## Make output dir, if it does not exists
     out_file_name_full = os.path.abspath(out_file_name)
-    out_dir = os.path.dirname(out_file_name_full)
-    if os.path.exists(out_dir) == False:
-        os.makedirs(out_dir)
-
-    ## Check out file
-    if os.path.exists(out_file_name_full):
-        raise ValueError('Out file already exists: %s. Change name or delete to save.' % out_file_name_full)
-
-    ## Save out file
-    out_file = open(out_file_name, 'wb')
+    out_file = open(out_file_name_full, 'wb')
     pickle.dump(out_model, out_file)
     out_file.close()
 
@@ -444,18 +431,7 @@ def save_data(out_df, out_file_name):
     """
     Save dataframe as a csv file
     """
-    ## Set extension to .csv, if it's not
-    out_file_name = out_file_name.rstrip('.csv') + '.csv'
-
-    ## Make output dir, if it does not exists
     out_file_name_full = os.path.abspath(out_file_name)
-    out_dir = os.path.dirname(out_file_name_full)
-    if os.path.exists(out_dir) == False:
-        os.makedirs(out_dir)
-
-    ## Check out file
-    if os.path.exists(out_file_name_full):
-        raise ValueError('Out file already exists: %s. Change name or delete to save.' % out_file_name_full)
 
     ## Save out file
     out_df.to_csv(out_file_name_full, index = False)

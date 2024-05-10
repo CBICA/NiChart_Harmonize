@@ -93,7 +93,7 @@ def nh_harmonize_to_ref(in_data : Union[pd.DataFrame, str],
     logger.info('  Verify data against model ...')
     missing_vars = verify_data_to_model(mdl_in, df_in)
     logger.info(len(missing_vars))
-    input()
+    ##input()
     
     if len(missing_vars) > 0:
         logger.info('Data does not match model, missing columns: ' + missing_vars)

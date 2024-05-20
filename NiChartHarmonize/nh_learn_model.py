@@ -23,9 +23,9 @@ FORMAT = "[%(filename)s:%(lineno)s - %(funcName)20s() ] %(message)s"
 #pwd='/home/guray/Github/neuroHarmonizeV2/neuroHarmonizeV2'
 #sys.path.append(pwd)
 
-#from .nh_utils import read_data, check_key, make_dict_vars, add_spline_bounds, make_dict_cat, get_data_and_covars, make_dict_batches, make_design_dataframe, add_spline_vars, calc_B_hat, standardize_across_features, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_data
+from .nh_utils import read_data, check_key, make_dict_vars, add_spline_bounds, make_dict_cat, get_data_and_covars, make_dict_batches, make_design_dataframe, add_spline_vars, calc_B_hat, standardize_across_features, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_data
 
-from nh_utils import read_data, check_key, make_dict_vars, add_spline_bounds, make_dict_cat, get_data_and_covars, make_dict_batches, make_design_dataframe, add_spline_vars, calc_B_hat, standardize_across_features, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_data
+#from nh_utils import read_data, check_key, make_dict_vars, add_spline_bounds, make_dict_cat, get_data_and_covars, make_dict_batches, make_design_dataframe, add_spline_vars, calc_B_hat, standardize_across_features, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_data
 
 ##############################
 #### FIXME SAVE VARS FOR DEBUG

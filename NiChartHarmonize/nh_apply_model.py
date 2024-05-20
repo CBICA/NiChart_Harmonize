@@ -26,6 +26,8 @@ logger.setLevel(logging.INFO)    ## FIXME Comments will be removed in release ve
 
 from .nh_utils import read_data, read_model, verify_data_to_model, check_key, filter_data, get_data_and_covars, make_dict_vars, make_dict_batches, make_design_dataframe_using_model, update_spline_vars_using_model, standardize_across_features_using_model, update_model_new_batch, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_data
 
+#from nh_utils import read_data, read_model, verify_data_to_model, check_key, filter_data, get_data_and_covars, make_dict_vars, make_dict_batches, make_design_dataframe_using_model, update_spline_vars_using_model, standardize_across_features_using_model, update_model_new_batch, fit_LS_model, find_parametric_adjustments, adjust_data_final, calc_aprior, calc_bprior, save_model, save_data
+
 #from nh_utils import fitLSModelAndFindPriorsV2
 
 ## FIXME Example to save curr vars

@@ -20,3 +20,13 @@ neuroharm -a learn -i ${tmpdir}/ISTAGING_COV+DATA.csv -b Study -n MUSE_ICV -c Is
 
 
 neuroharm -a apply --model ./TmpOut/Mdl2.pkl.gz --data ${tmpdir}/ISTAGING_DATA.csv --covars ${tmpdir}/ISTAGING_COV.csv --out_model ./TmpOut/Mdl3.pkl.gz --out_csv ./TmpOut/Mdl3.csv
+
+
+
+## In Ipython
+import nh_apply_model as nha
+bdir='/home/guraylab/GitHub/NiChart/NiChart_Workflows/NiChart_Live'
+i = bdir + '/data/AIBL/Harmonized/AIBL_preharm.csv'
+m = bdir + '/models/Harmonization/Dataset_combat.mdl.pkl.gz'
+o = bdir + '/data/AIBL/Harmonized/AIBL_HARM.csv'
+nha.nh_harmonize_to_ref(i, m, False, None, o)
